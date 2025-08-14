@@ -43,7 +43,7 @@ export default function ActivityPage({ onContinue, selectMethod, type }: Activit
 
       {/* Continue Button */}
       <Link href="/signin" className="w-full">
-        <Button type="secondary" onClick={onContinue}>
+        <Button type="secondary" onClick={onContinue} disabled={type === 'check-sheet'}>
             Next
         </Button>
       </Link>

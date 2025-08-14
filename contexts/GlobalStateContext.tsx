@@ -4,6 +4,8 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 type GlobalStateContextType = {
   method: string;
   changeMethod: (type: string) => void;
+  vehicleType: string;
+  changeVehicleType: (type: string) => void;
 };
 
 const GlobalStateContext = createContext<GlobalStateContextType | undefined>(undefined);
@@ -12,18 +14,24 @@ type GlobalStateProviderProps = {
   children: ReactNode;
 };
 
-const STORAGE_KEY = 'vehicle_maintenance_method';
+const STORAGE_KEY_METHOD = 'vehicle_maintenance_method';
+const STORAGE_KEY_VEHICLE_TYPE = 'vehicle_maintenance_vehicle_type';
 
 export function GlobalStateProvider({ children }: GlobalStateProviderProps) {
   const [method, setMethod] = useState<string>("maintenance");
+  const [vehicleType, setVehicleType] = useState<string>("towing");
   const [isLoaded, setIsLoaded] = useState(false);
 
   // Load from sessionStorage on mount
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const savedMethod = sessionStorage.getItem(STORAGE_KEY);
+      const savedMethod = sessionStorage.getItem(STORAGE_KEY_METHOD);
+      const savedVehicleType = sessionStorage.getItem(STORAGE_KEY_VEHICLE_TYPE);
       if (savedMethod) {
         setMethod(savedMethod);
+      }
+      if (savedVehicleType) {
+        setVehicleType(savedVehicleType);
       }
       setIsLoaded(true);
     }
@@ -33,7 +41,15 @@ export function GlobalStateProvider({ children }: GlobalStateProviderProps) {
     setMethod(type);
     // Save to sessionStorage for persistence across navigation
     if (typeof window !== 'undefined') {
-      sessionStorage.setItem(STORAGE_KEY, type);
+      sessionStorage.setItem(STORAGE_KEY_METHOD, type);
+    }
+  };
+
+  const changeVehicleType = (type: string) => {
+    setVehicleType(type);
+    // Save to sessionStorage for persistence across navigation
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem(STORAGE_KEY_VEHICLE_TYPE, type);
     }
   };
 
@@ -43,7 +59,7 @@ export function GlobalStateProvider({ children }: GlobalStateProviderProps) {
   }
 
   return (
-    <GlobalStateContext.Provider value={{ method, changeMethod }}>
+    <GlobalStateContext.Provider value={{ method, changeMethod, vehicleType, changeVehicleType }}>
       {children}
     </GlobalStateContext.Provider>
   );

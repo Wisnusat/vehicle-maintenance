@@ -45,6 +45,7 @@
 
 @theme {
   --color-primary: #29166F;
+  --color-secondary: #ECF9F1;
 }
 
 :root {
