@@ -2,6 +2,7 @@ import Image from 'next/image';
 import React, { useState } from 'react';
 import { towingParts, forkliftParts, truckParts } from '@/data/parts';
 import { useRouter } from 'next/navigation';
+import { Sidebar } from '@/components/ui/sidebar';
 
 type Part = {
     name: string;
@@ -156,7 +157,7 @@ export default function VehicleServices({ vehicleType = 'forklift' }: VehicleSer
         <div className="min-h-screen bg-secondary flex flex-col px-6 py-8 overflow-hidden">
             {/* Menu */}
             <div className="flex w-full items-start cursor-pointer pb-2">
-                <Image src="/images/menu.svg" alt="Menu" width={26} height={26} />
+                <Sidebar />
             </div>
 
             <div className="p-4">
@@ -201,7 +202,7 @@ export default function VehicleServices({ vehicleType = 'forklift' }: VehicleSer
                                             >
                                                 {/* Selection Checkmark */}
                                                 {selectedPart === part.name && (
-                                                    <div className="absolute top-2 right-2 w-6 h-6 bg-primary rounded-full flex items-center justify-center">
+                                                    <div className="absolute -top-2 -right-2 w-6 h-6 bg-primary rounded-full flex items-center justify-center">
                                                         <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                                                         </svg>
