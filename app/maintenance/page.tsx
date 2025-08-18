@@ -1,11 +1,11 @@
 "use client";
-import VehicleType from "@/components/view/maintenance/vehicleType";
-import { useGlobalState } from "@/contexts/GlobalStateContext";
-import React from "react";
 
-export default function MaintenancePage() {
-    const { vehicleType, changeVehicleType } = useGlobalState();
+import ChecksheetPage from '@/components/view/maintenance/checksheetPage';
+import React from 'react';
+
+export default function Page() {
+
     return (
-        <VehicleType vehicleType={vehicleType} changeVehicleType={changeVehicleType} />
-    )
-}
+        <ChecksheetPage />
+    );
+};

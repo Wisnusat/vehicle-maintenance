@@ -1,6 +1,6 @@
 "use client";
 
-import DetailServicePage from '@/components/view/checksheet/detailServicePage';
+import DetailServicePage from '@/components/view/maintenance/detailServicePage';
 import React from 'react';
 
 export default function Page() {

@@ -1,6 +1,6 @@
 "use client";
 
-import VehicleServices from '@/components/view/maintenance/vehicleServices';
+import VehicleServices from '@/components/view/checksheet/vehicleServices';
 import React from 'react';
 import { useGlobalState } from '@/contexts/GlobalStateContext';
 

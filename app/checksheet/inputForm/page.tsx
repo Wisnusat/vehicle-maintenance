@@ -1,6 +1,6 @@
 "use client";
 
-import FormMaintenance from '@/components/view/maintenance/formMaintenance';
+import FormMaintenance from '@/components/view/checksheet/formMaintenance';
 import { useGlobalState } from '@/contexts/GlobalStateContext';
 import React from 'react';
 

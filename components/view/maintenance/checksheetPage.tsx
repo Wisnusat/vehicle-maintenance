@@ -109,7 +109,7 @@ export default function ChecksheetPage() {
     };
 
     const handleNextClick = () => {
-        router.push('/checksheet/detail');
+        router.push('/maintenance/detail');
     };
 
     return (

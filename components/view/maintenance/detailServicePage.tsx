@@ -93,7 +93,7 @@ export default function DetailServicePage() {
     };
 
     const handleNextClick = () => {
-        router.push('/checksheet/confirm');
+        router.push('/maintenance/confirm');
     };
 
     return (

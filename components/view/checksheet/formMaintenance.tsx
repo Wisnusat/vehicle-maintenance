@@ -112,7 +112,6 @@ export default function FormMaintenance({ vehicleType }: FormMaintenanceProps) {
 
         // Common validations
         if (!formData.nik.trim()) newErrors.nik = 'NIK is required';
-        else if (!/^\d{16}$/.test(formData.nik)) newErrors.nik = 'NIK must be 16 digits';
 
         if (!formData.fullName.trim()) newErrors.fullName = 'Full name is required';
         else if (formData.fullName.trim().length < 2)
@@ -147,7 +146,7 @@ export default function FormMaintenance({ vehicleType }: FormMaintenanceProps) {
         e.preventDefault();
         if (validateForm()) {
             console.log('Form submitted:', formData);
-            router.push('/maintenance/services');
+            router.push('/checksheet/services');
         }
     };
 

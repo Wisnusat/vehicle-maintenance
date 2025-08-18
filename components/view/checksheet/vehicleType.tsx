@@ -93,7 +93,7 @@ export default function VehicleType({ vehicleType, changeVehicleType }: VehicleT
                     <Image src="/images/truk.svg" alt="Menu" width={70} height={70} />
                 </div>
                 <div className="flex flex-col h-full items-end justify-end w-full mt-4">
-                    <Link className="w-full" href="/maintenance/inputForm">
+                    <Link className="w-full" href="/checksheet/inputForm">
                         <Button type='primary'>Next</Button>
                     </Link>
                 </div>
