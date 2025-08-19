@@ -1,30 +1,42 @@
 import Image from 'next/image';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { towingParts, forkliftParts, truckParts } from '@/data/parts';
 import { useRouter } from 'next/navigation';
 import { Sidebar } from '@/components/ui/sidebar';
+import { toast } from 'sonner';
+import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 
 type Part = {
     name: string;
     image: string;
+    kondisi: {
+        text: string;
+    }[];
 };
 
 type VehicleServicesProps = {
     vehicleType?: string;
 };
 
+type Payload = {
+    partName: string;
+    pengecekan: {
+        text: string;
+        kondisi: string;
+    }[];
+    note: string;
+};
+
 export default function VehicleServices({ vehicleType = 'forklift' }: VehicleServicesProps) {
     const router = useRouter();
     const [currentSlide, setCurrentSlide] = useState(0);
     const [selectedPart, setSelectedPart] = useState<string>('');
+    const [selectedPartIndex, setSelectedPartIndex] = useState<number>(-1);
     const [touchStart, setTouchStart] = useState<number | null>(null);
     const [touchEnd, setTouchEnd] = useState<number | null>(null);
-    const [formData, setFormData] = useState({
-        kerusakan: '',
-        kelengkapan: '',
-        note: ''
-    });
+    const [formData, setFormData] = useState<Payload[]>([]);
     const [isSaved, setIsSaved] = useState(false);
+    const [isLoading, setIsLoading] = useState<boolean>(false);
 
     // Get parts based on vehicle type
     const getParts = (): Part[] => {
@@ -43,6 +55,7 @@ export default function VehicleServices({ vehicleType = 'forklift' }: VehicleSer
     const parts = getParts();
     const partsPerSlide = 6;
     const totalSlides = Math.ceil(parts.length / partsPerSlide);
+    const idChecksheet = JSON.parse(localStorage.getItem('checksheetProfile') || '{}')?.id;
 
     // Minimum swipe distance (in px) to trigger slide change
     const minSwipeDistance = 50;
@@ -53,15 +66,9 @@ export default function VehicleServices({ vehicleType = 'forklift' }: VehicleSer
         return parts.slice(startIndex, startIndex + partsPerSlide);
     };
 
-    const handlePartSelect = (partName: string) => {
+    const handlePartSelect = (partName: string, index: number) => {
+        setSelectedPartIndex(index);
         setSelectedPart(partName);
-    };
-
-    const handleFormChange = (field: string, value: string) => {
-        setFormData(prev => ({
-            ...prev,
-            [field]: value
-        }));
     };
 
     const handleSave = () => {
@@ -72,8 +79,29 @@ export default function VehicleServices({ vehicleType = 'forklift' }: VehicleSer
         setIsSaved(false);
     };
 
-    const handleNext = () => {
-        router.push('/history');
+    const handleNext = async () => {
+        setIsLoading(true);
+
+        try {
+            const supabase = createSupabaseBrowserClient();
+
+            const { data, error } = await supabase
+                .from('checksheetParts')
+                .insert(formData)
+                .select();
+
+            if (error || !data) {
+                toast.error('Gagal menyimpan data. Coba lagi.');
+                return;
+            }
+
+            toast.success('Data tersimpan');
+            router.push('/history');
+        } catch (err) {
+            toast.error('Terjadi kesalahan. Silakan coba lagi.');
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     const nextSlide = () => {
@@ -153,6 +181,35 @@ export default function VehicleServices({ vehicleType = 'forklift' }: VehicleSer
         setIsDragging(false);
     };
 
+    const mapParts = (): Payload[] => {
+        return parts.map((part) => ({
+            id_checksheet: parseInt(idChecksheet),
+            partName: part.name,
+            pengecekan: part.kondisi.map((k) => ({
+                text: k.text,
+                kondisi: 'Problem',
+            })),
+            note: '',
+        }));
+    }
+
+    const selectCondition = (index: number) => {
+        if (isSaved) return;
+        formData[selectedPartIndex].pengecekan[index].kondisi = 'Baik';
+        setFormData([...formData]);
+    };
+
+    const handleInputNote = (note: string) => {
+        if (isSaved) return;
+        formData[selectedPartIndex].note = note;
+        setFormData([...formData]);
+    };
+
+    useEffect(() => {
+        const tempData = mapParts();
+        setFormData(tempData);
+    }, [parts]);
+
     return (
         <div className="min-h-screen bg-secondary flex flex-col px-6 py-8 overflow-hidden">
             {/* Menu */}
@@ -190,13 +247,13 @@ export default function VehicleServices({ vehicleType = 'forklift' }: VehicleSer
                                         {getPartsForSlide(slideIndex).map((part, index) => (
                                             <div
                                                 key={`${slideIndex}-${index}`}
-                                                onClick={() => handlePartSelect(part.name)}
+                                                onClick={() => handlePartSelect(part.name, ((slideIndex * partsPerSlide) + index))}
                                                 className={`
                                                     relative cursor-pointer rounded-3xl p-6 flex flex-col items-center justify-center
-                                                    min-h-[120px] transition-all duration-200 shadow-md
+                                                    min-h-[120px] transition-all duration-200 shadow-md border-2
                                                     ${selectedPart === part.name
-                                                        ? 'bg-primary/10 border-2 border-primary'
-                                                        : 'bg-white hover:bg-gray-50'
+                                                        ? 'bg-primary/10 border-primary'
+                                                        : 'bg-white hover:bg-gray-50 border-white'
                                                     }
                                                 `}
                                             >
@@ -273,27 +330,37 @@ export default function VehicleServices({ vehicleType = 'forklift' }: VehicleSer
                 <div className="w-full mt-6 bg-[#9FB1EB] rounded-3xl p-6 text-white">
                     {/* Form Fields */}
                     <div className="space-y-4">
-                        {/* Selected Service with Checkmark */}
-                        <div className="relative">
-                            <div className="w-full p-3 rounded-2xl text-primary bg-white border-2 border-primary font-medium">
-                                {selectedPart || "Component"}
-                            </div>
-                            <div className="absolute top-2 right-2 w-6 h-6 bg-primary rounded-full flex items-center justify-center">
-                                <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                </svg>
-                            </div>
+                        <div className="grid grid-cols-2 gap-2 w-full">
+                            {parts[selectedPartIndex]?.kondisi?.map((k, i) => (
+                                <div
+                                    key={i}
+                                    className={`relative ${isSaved ? 'cursor-not-allowed' : 'cursor-pointer'} ${i === parts[selectedPartIndex]?.kondisi?.length - 1 && parts[selectedPartIndex]?.kondisi?.length % 2 === 1 ? "col-span-2" : ""}`}
+                                    onClick={() => selectCondition(i)}
+                                >
+                                    <div className={`w-full p-3 rounded-2xl text-primary border-2 font-medium ${isSaved ? 'bg-gray-200' : 'bg-white'} ${formData[selectedPartIndex]?.pengecekan[i].kondisi === 'Baik' && 'border-primary'}`}>
+                                        {k.text}
+                                    </div>
+                                    {formData[selectedPartIndex]?.pengecekan[i].kondisi === 'Baik' && (
+                                        <div className="absolute top-2 right-2 w-6 h-6 bg-primary rounded-full flex items-center justify-center">
+                                            <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                            </svg>
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
                         </div>
+
 
                         {/* Note */}
                         <div>
                             <textarea
                                 placeholder="Note:"
-                                value={formData.note}
-                                onChange={(e) => handleFormChange('note', e.target.value)}
+                                value={formData[selectedPartIndex]?.note}
+                                onChange={(e) => handleInputNote(e.target.value)}
                                 disabled={isSaved}
                                 rows={3}
-                                className="w-full p-3 rounded-2xl text-primary bg-white placeholder-gray-500 resize-none disabled:bg-gray-100"
+                                className="w-full p-3 rounded-2xl text-primary bg-white placeholder-gray-500 resize-none disabled:bg-gray-200"
                             />
                         </div>
                     </div>
@@ -301,22 +368,25 @@ export default function VehicleServices({ vehicleType = 'forklift' }: VehicleSer
                     {/* Action Buttons */}
                     <div className="flex justify-between mt-6 space-x-4">
                         <button
+                            disabled={isLoading}
                             onClick={handleEdit}
                             className="flex-1 bg-primary text-white py-3 px-6 rounded-full font-medium hover:bg-primary/90 transition-colors"
                         >
                             Edit
                         </button>
                         <button
+                            disabled={isLoading}
                             onClick={handleSave}
                             className="flex-1 bg-primary text-white py-3 px-6 rounded-full font-medium hover:bg-primary/90 transition-colors"
                         >
                             Save
                         </button>
                         <button
+                            disabled={isLoading}
                             onClick={handleNext}
-                            className="flex-1 bg-primary text-white py-3 px-6 rounded-full font-medium hover:bg-primary/90 transition-colors"
+                            className="flex-1 bg-primary text-white py-3 px-6 rounded-full font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
                         >
-                            Next
+                            {isLoading ? 'Loading...' : 'Next'}
                         </button>
                     </div>
                 </div>

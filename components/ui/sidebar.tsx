@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils"
 import { Drawer, DrawerContent, DrawerTrigger, DrawerTitle } from "@/components/ui/drawer"
 import { useGlobalState } from "@/contexts/GlobalStateContext"
 
-const menuItemsMaintenance = [
+const menuItemsChecksheet = [
     {
         name: "Dashboard",
         icon: "/icons/dashboard.svg",
@@ -25,7 +25,7 @@ const menuItemsMaintenance = [
     },
 ]
 
-const menuItemsChecksheet = [
+const menuItemsMaintenance = [
     {
         name: "Dashboard",
         icon: "/icons/dashboard.svg",

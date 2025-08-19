@@ -7,6 +7,7 @@ import { Eye, EyeOff } from 'lucide-react';
 type SigninPageProps = {
     onContinue: (data: FormData) => void;
     type: string;
+    isLoading: boolean;
 }
 
 export type FormData = {
@@ -14,7 +15,7 @@ export type FormData = {
     nik: string;
 }
 
-export default function SigninPage({ onContinue, type }: SigninPageProps) {
+export default function SigninPage({ onContinue, type, isLoading }: SigninPageProps) {
   const [name, setName] = useState<string>("");
   const [nik, setNik] = useState<string>("");
   const [showNik, setShowNik] = useState<boolean>(false);
@@ -106,8 +107,8 @@ export default function SigninPage({ onContinue, type }: SigninPageProps) {
 
         {/* Continue Button */}
         <div className="mt-8">
-          <Button type="secondary">
-            Sign In
+          <Button type="secondary" disabled={isLoading}>
+            {isLoading ? 'Loading...' : 'Sign In'}
           </Button>
         </div>
       </form>

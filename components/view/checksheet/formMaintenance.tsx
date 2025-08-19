@@ -3,9 +3,13 @@ import React, { useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { useRouter } from 'next/navigation';
 import { Sidebar } from '@/components/ui/sidebar';
+import { createSupabaseBrowserClient } from '@/lib/supabase/client';
+import { toast } from 'sonner';
 
 type FormMaintenanceProps = {
     vehicleType: string;
+    nik: string;
+    fullName: string;
 };
 
 type FormData = {
@@ -19,12 +23,12 @@ type FormData = {
 
     // Truck
     noPolisi: string;
-    rutePengiriman: string;
+    ruteDelivery: string;
     sim: string;
     sioDepnaker: string;
     stnk: string;
     stickerKir: string;
-    suratIzinBongkarMuat: string;
+    ibm: string;
 
     tanggal: string;
     waktuPengisian: string;
@@ -53,7 +57,7 @@ const noPolisiList = [
     { label: 'B 9804 FCD', value: 'B9804FCD' },
 ];
 
-const rutePengirimanList = [
+const ruteDeliveryList = [
     { label: 'FTI', value: 'FTI' },
     { label: 'TMMIN KRW 4U', value: 'TMMIN_KRW_4U' },
     { label: 'TMMIN KRW 4P', value: 'TMMIN_KRW_4P' },
@@ -67,13 +71,13 @@ const rutePengirimanList = [
     { label: 'HYUNDAI', value: 'HYUNDAI' },
 ];
 
-export default function FormMaintenance({ vehicleType }: FormMaintenanceProps) {
+export default function FormMaintenance({ vehicleType, nik, fullName }: FormMaintenanceProps) {
     const router = useRouter();
     const isTruck = vehicleType?.toLowerCase() === 'truck';
 
     const [formData, setFormData] = useState<FormData>({
-        nik: '',
-        fullName: '',
+        nik: nik,
+        fullName: fullName,
         shift: '',
 
         // Non-truck
@@ -82,12 +86,12 @@ export default function FormMaintenance({ vehicleType }: FormMaintenanceProps) {
 
         // Truck
         noPolisi: '',
-        rutePengiriman: '',
+        ruteDelivery: '',
         sim: '',
         sioDepnaker: '',
         stnk: '',
         stickerKir: '',
-        suratIzinBongkarMuat: '',
+        ibm: '',
 
         tanggal: '',
         waktuPengisian: '',
@@ -126,12 +130,12 @@ export default function FormMaintenance({ vehicleType }: FormMaintenanceProps) {
         if (isTruck) {
             // Truck-specific required fields
             if (!formData.noPolisi) newErrors.noPolisi = 'No Polisi is required';
-            if (!formData.rutePengiriman) newErrors.rutePengiriman = 'Rute Delivery is required';
+            if (!formData.ruteDelivery) newErrors.ruteDelivery = 'Rute Delivery is required';
             if (!formData.sim) newErrors.sim = 'SIM is required';
             if (!formData.sioDepnaker) newErrors.sioDepnaker = 'SIO Depnaker is required';
             if (!formData.stnk) newErrors.stnk = 'STNK is required';
             if (!formData.stickerKir) newErrors.stickerKir = 'Sticker KIR is required';
-            if (!formData.suratIzinBongkarMuat) newErrors.suratIzinBongkarMuat = 'Surat Izin Bongkar Muat is required';
+            if (!formData.ibm) newErrors.ibm = 'Surat Izin Bongkar Muat is required';
         } else {
             // Non-truck required fields
             if (!formData.noUnit.trim()) newErrors.noUnit = 'No Unit is required';
@@ -142,11 +146,35 @@ export default function FormMaintenance({ vehicleType }: FormMaintenanceProps) {
         return Object.keys(newErrors).length === 0;
     };
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (validateForm()) {
-            console.log('Form submitted:', formData);
+        if (!validateForm()) return;
+
+        try {
+            const supabase = createSupabaseBrowserClient();
+
+            const payload = {
+                ...formData,
+                vehicleType,
+            };
+
+            const { data, error } = await supabase
+                .from('checksheetProfile')
+                .insert([payload])
+                .select()
+                .single();
+
+            if (error || !data) {
+                console.error('Insert error:', error);
+                toast.error('Gagal menyimpan data. Coba lagi.');
+                return;
+            }
+
+            localStorage.setItem('checksheetProfile', JSON.stringify(data));
+            toast.success('Data tersimpan');
             router.push('/checksheet/services');
+        } catch (err) {
+            toast.error('Terjadi kesalahan. Silakan coba lagi.');
         }
     };
 
@@ -252,23 +280,23 @@ export default function FormMaintenance({ vehicleType }: FormMaintenanceProps) {
                         <div className="flex flex-col">
                             <label>Rute Delivery</label>
                             <select
-                                id="rutePengiriman"
-                                value={formData.rutePengiriman}
-                                onChange={(e) => handleInputChange('rutePengiriman', e.target.value)}
+                                id="ruteDelivery"
+                                value={formData.ruteDelivery}
+                                onChange={(e) => handleInputChange('ruteDelivery', e.target.value)}
                                 disabled={isSaved}
-                                className={`bg-white shadow-md p-1.5 rounded-lg ${errors.rutePengiriman ? 'border-red-500 border border-solid' : ''
+                                className={`bg-white shadow-md p-1.5 rounded-lg ${errors.ruteDelivery ? 'border-red-500 border border-solid' : ''
                                     }`}
-                                aria-invalid={!!errors.rutePengiriman}
+                                aria-invalid={!!errors.ruteDelivery}
                             >
                                 <option value="">Pilih Rute Delivery</option>
-                                {rutePengirimanList.map((item) => (
+                                {ruteDeliveryList.map((item) => (
                                     <option key={item.value} value={item.value}>
                                         {item.label}
                                     </option>
                                 ))}
                             </select>
-                            {errors.rutePengiriman && (
-                                <p className="text-red-500 text-sm mt-1">{errors.rutePengiriman}</p>
+                            {errors.ruteDelivery && (
+                                <p className="text-red-500 text-sm mt-1">{errors.ruteDelivery}</p>
                             )}
                         </div>
                     </>
@@ -413,14 +441,14 @@ export default function FormMaintenance({ vehicleType }: FormMaintenanceProps) {
                                 id="surat_izin_bongkar_muat"
                                 type="text"
                                 placeholder="Surat Izin Bongkar Muat (IBM)"
-                                value={formData.suratIzinBongkarMuat}
-                                onChange={(e) => handleInputChange('suratIzinBongkarMuat', e.target.value)}
+                                value={formData.ibm}
+                                onChange={(e) => handleInputChange('ibm', e.target.value)}
                                 disabled={isSaved}
-                                className={`bg-white shadow-md ${errors.suratIzinBongkarMuat ? 'border-red-500' : ''}`}
-                                aria-invalid={!!errors.suratIzinBongkarMuat}
+                                className={`bg-white shadow-md ${errors.ibm ? 'border-red-500' : ''}`}
+                                aria-invalid={!!errors.ibm}
                             />
-                            {errors.suratIzinBongkarMuat && (
-                                <p className="text-red-500 text-sm mt-1">{errors.suratIzinBongkarMuat}</p>
+                            {errors.ibm && (
+                                <p className="text-red-500 text-sm mt-1">{errors.ibm}</p>
                             )}
                         </div>
                     </>

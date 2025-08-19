@@ -1,7 +1,12 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+"use client";
 import Button from '@/components/ui/Button';
 import { Sidebar } from '@/components/ui/sidebar';
 import Image from 'next/image';
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { createSupabaseBrowserClient } from '@/lib/supabase/client';
+import { toast } from 'sonner';
+import { useRouter } from 'next/navigation';
 
 type VehicleDetail = {
     name: string;
@@ -11,42 +16,173 @@ type VehicleDetail = {
     shift: string;
     waktuPengisian: string;
     noUnit: string;
+    vehicleType?: string;
 };
 
-type PartDetail = {
-    id: string;
-    name: string;
-    pengecekan: string;
+type Pengecekan = {
+    text: string;
     kondisi: string;
 };
 
-export default function HistoryDetail() {
-    // Sample vehicle data
-    const vehicleDetail: VehicleDetail = {
-        name: 'XXX',
-        line: 'XXX',
-        nik: 'XXX',
-        tanggal: 'XXXXXX',
-        shift: 'XXX',
-        waktuPengisian: 'XXXX',
-        noUnit: 'XXX'
+type ChecksheetPartRow = {
+    id: string;
+    partName: string;
+    pengecekan: Pengecekan[];
+};
+
+export default function HistoryDetail({ id }: { id?: string }) {
+    const router = useRouter();
+    const [vehicleDetail, setVehicleDetail] = useState<VehicleDetail | null>(null);
+    const [partsDetails, setPartsDetails] = useState<ChecksheetPartRow[]>([]);
+    const [isLoading, setIsLoading] = useState<boolean>(false);
+    const [isDeleting, setIsDeleting] = useState<boolean>(false);
+
+    const vehicleType = useMemo(() => vehicleDetail?.vehicleType, [vehicleDetail]);
+
+    const isPengecekan = (v: any): v is Pengecekan =>
+        v && typeof v === "object" && typeof v.text === "string" && typeof v.kondisi === "string";
+
+    /** Accepts: Pengecekan[], string[], JSON string of array, or null; returns Pengecekan[] */
+    const normalizePengecekan = (raw: unknown): Pengecekan[] => {
+        if (!raw) return [];
+
+        // If it's already an array
+        if (Array.isArray(raw)) {
+            return raw
+                .map((item) => {
+                    if (isPengecekan(item)) return item;                // already object
+                    if (typeof item === "string") {
+                        try {
+                            const parsed = JSON.parse(item);
+                            return isPengecekan(parsed) ? parsed : null;    // stringified object
+                        } catch {
+                            return null;
+                        }
+                    }
+                    return null;
+                })
+                .filter((x): x is Pengecekan => x !== null);
+        }
+
+        // If it's a single JSON string (maybe an array or a single object)
+        if (typeof raw === "string") {
+            try {
+                const parsed = JSON.parse(raw);
+                if (Array.isArray(parsed)) {
+                    return parsed.filter(isPengecekan);
+                }
+                return isPengecekan(parsed) ? [parsed] : [];
+            } catch {
+                return [];
+            }
+        }
+
+        return [];
     };
 
-    // Sample parts data
-    const partsDetails: PartDetail[] = [
-        {
-            id: '1',
-            name: 'Safety Belt',
-            pengecekan: 'Berfungsi Dengan Baik Saat Posisi Terpasang',
-            kondisi: 'Baik'
-        },
-        {
-            id: '2',
-            name: 'Lampu Sein',
-            pengecekan: 'Lampu Sein Depan Kanan Dan Kiri Normal Lampu Sein Belakang Kanan Dan Kiri Normal',
-            kondisi: 'Problem'
+    useEffect(() => {
+        const fetchDetail = async () => {
+            if (!id) return;
+            setIsLoading(true);
+            try {
+                const supabase = createSupabaseBrowserClient();
+
+                const { data: profile, error: profileErr } = await supabase
+                    .from('checksheetProfile')
+                    .select('*')
+                    .eq('id', id)
+                    .single();
+
+                if (profileErr || !profile) {
+                    toast.error('Gagal mengambil detail riwayat.');
+                    setIsLoading(false);
+                    return;
+                }
+
+                const mappedVehicle: VehicleDetail = {
+                    name: profile.fullName ?? '-',
+                    line: profile.line ?? '-',
+                    nik: profile.nik ?? '-',
+                    tanggal: profile.tanggal ?? '-',
+                    shift: profile.shift ?? '-',
+                    waktuPengisian: profile.waktuPengisian ?? '-',
+                    noUnit: (profile.noUnit || profile.noPolisi || '-') as string,
+                    vehicleType: profile.vehicleType ?? undefined,
+                };
+                setVehicleDetail(mappedVehicle);
+
+                const { data: parts, error: partsErr } = await supabase
+                    .from('checksheetParts')
+                    .select('*')
+                    .eq('id_checksheet', id);
+
+                if (partsErr || !parts) {
+                    setPartsDetails([]);
+                } else {
+                    const parsed: ChecksheetPartRow[] = parts.map((p: any) => ({
+                        id: p.id,
+                        partName: p.partName,
+                        pengecekan: normalizePengecekan(p.pengecekan),
+                    }));
+                    setPartsDetails(parsed);
+                }
+            } catch {
+                toast.error('Terjadi kesalahan saat mengambil data.');
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        fetchDetail();
+    }, [id]);
+
+    const handleDelete = async () => {
+        if (!id) return;
+        const confirmed = window.confirm('Apakah Anda yakin ingin menghapus riwayat ini? Tindakan ini tidak dapat dibatalkan.');
+        if (!confirmed) return;
+
+        setIsDeleting(true);
+        try {
+            const supabase = createSupabaseBrowserClient();
+
+            // Delete dependent parts first
+            const { error: partsDelErr } = await supabase
+                .from('checksheetParts')
+                .delete()
+                .eq('id_checksheet', id);
+            if (partsDelErr) {
+                toast.error('Gagal menghapus detail parts.');
+                setIsDeleting(false);
+                return;
+            }
+
+            // Then delete the profile
+            const { error: profileDelErr } = await supabase
+                .from('checksheetProfile')
+                .delete()
+                .eq('id', id);
+            if (profileDelErr) {
+                toast.error('Gagal menghapus riwayat.');
+                setIsDeleting(false);
+                return;
+            }
+
+            toast.success('Riwayat berhasil dihapus.');
+            router.push('/history');
+        } catch {
+            toast.error('Terjadi kesalahan saat menghapus.');
+        } finally {
+            setIsDeleting(false);
         }
-    ];
+    };
+
+    if (isLoading && !vehicleDetail) {
+        return (
+            <div className="min-h-screen bg-secondary flex items-center justify-center">
+                <p className="text-primary">Loading...</p>
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen bg-secondary">
@@ -59,8 +195,12 @@ export default function HistoryDetail() {
             <div className="flex flex-col items-center px-6 mb-6">
                 <div className="w-32 h-32 rounded-full border-4 border-primary flex items-center justify-center bg-white mb-4">
                     <Image
-                        src="/images/forklift_img.svg"
-                        alt="Forklift"
+                        src={
+                            vehicleType?.toLowerCase() === 'truck' ? '/images/truck_img.svg' :
+                                vehicleType?.toLowerCase() === 'towing' ? '/images/tuktuk.svg' :
+                                    '/images/forklift_img.svg'
+                        }
+                        alt={vehicleType || 'Vehicle'}
                         width={80}
                         height={80}
                         className="object-contain"
@@ -68,7 +208,11 @@ export default function HistoryDetail() {
                 </div>
                 <div className="text-center">
                     <p className="text-gray-500 text-sm">Type Unit</p>
-                    <p className="text-primary font-semibold text-lg">Forklift</p>
+                    <p className="text-primary font-semibold text-lg">{vehicleType || '-'}</p>
+                    {/* Optional: show id for debugging */}
+                    {id && (
+                        <p className="text-xs text-gray-500 mt-1">ID: {id}</p>
+                    )}
                 </div>
             </div>
 
@@ -81,35 +225,35 @@ export default function HistoryDetail() {
                             UBAH
                         </button>
                     </div>
-                    
+
                     <div className="grid grid-cols-2 gap-4 text-sm">
                         <div>
                             <p className="text-gray-500 mb-1">Nama</p>
-                            <p className="text-primary font-medium">{vehicleDetail.name}</p>
+                            <p className="text-primary font-medium">{vehicleDetail?.name || '-'}</p>
                         </div>
                         <div>
                             <p className="text-gray-500 mb-1">Line</p>
-                            <p className="text-primary font-medium">{vehicleDetail.line}</p>
+                            <p className="text-primary font-medium">{vehicleDetail?.line || '-'}</p>
                         </div>
                         <div>
                             <p className="text-gray-500 mb-1">NIK</p>
-                            <p className="text-primary font-medium">{vehicleDetail.nik}</p>
+                            <p className="text-primary font-medium">{vehicleDetail?.nik || '-'}</p>
                         </div>
                         <div>
                             <p className="text-gray-500 mb-1">Tanggal</p>
-                            <p className="text-primary font-medium">{vehicleDetail.tanggal}</p>
+                            <p className="text-primary font-medium">{vehicleDetail?.tanggal || '-'}</p>
                         </div>
                         <div>
                             <p className="text-gray-500 mb-1">Shift</p>
-                            <p className="text-primary font-medium">{vehicleDetail.shift}</p>
+                            <p className="text-primary font-medium">{vehicleDetail?.shift || '-'}</p>
                         </div>
                         <div>
                             <p className="text-gray-500 mb-1">Waktu Pengisian</p>
-                            <p className="text-primary font-medium">{vehicleDetail.waktuPengisian}</p>
+                            <p className="text-primary font-medium">{vehicleDetail?.waktuPengisian || '-'}</p>
                         </div>
                         <div className="col-span-2">
                             <p className="text-gray-500 mb-1">No Unit</p>
-                            <p className="text-primary font-medium">{vehicleDetail.noUnit}</p>
+                            <p className="text-primary font-medium">{vehicleDetail?.noUnit || '-'}</p>
                         </div>
                     </div>
                 </div>
@@ -127,24 +271,19 @@ export default function HistoryDetail() {
                                 </svg>
                             </button>
                         </div>
-                        
+
                         <div className="space-y-3 text-sm">
                             <div>
                                 <p className="text-gray-500 mb-1">Nama</p>
-                                <p className="text-primary font-medium">{part.name}</p>
+                                <p className="text-primary font-medium">{part.partName}</p>
                             </div>
                             <div>
                                 <p className="text-gray-500 mb-1">Pengecekan</p>
-                                <p className="text-primary font-medium leading-relaxed">{part.pengecekan}</p>
-                            </div>
-                            <div>
-                                <p className="text-gray-500 mb-1">Kondisi</p>
-                                <p className={`font-medium ${
-                                    part.kondisi === 'Baik' ? 'text-green-600' : 
-                                    part.kondisi === 'Problem' ? 'text-red-600' : 'text-primary'
-                                }`}>
-                                    {part.kondisi}
-                                </p>
+                                <p className="text-primary font-medium leading-relaxed flex-col gap-2">{part?.pengecekan?.map((pengecekan, i) => <div key={i}>{pengecekan.text} (<span className={`font-medium ${pengecekan.kondisi === 'Baik' ? 'text-green-600' :
+                                        pengecekan.kondisi === 'Problem' ? 'text-red-600' : 'text-primary'
+                                    }`}>
+                                    {pengecekan.kondisi}
+                                </span>)</div>)}</p>
                             </div>
                         </div>
                     </div>
@@ -152,19 +291,24 @@ export default function HistoryDetail() {
             </div>
 
             {/* Delete button */}
-           <div className="flex justify-end mt-6 mx-6">
-            <button type="button" className="bg-red-500 text-white px-4 py-2 rounded-md">
-                Hapus
-            </button>
-           </div>
-           
-           {/* Download Button */}
-           <div className="w-2/3 mx-auto mt-20">
-            <Button type="primary">
-                Download
-            </Button>
-           </div>
-           <div className="h-8"></div>
+            <div className="flex justify-end mt-6 mx-6">
+                <button
+                    type="button"
+                    onClick={handleDelete}
+                    disabled={isDeleting}
+                    className={`px-4 py-2 rounded-md text-white ${isDeleting ? 'bg-red-300 cursor-not-allowed' : 'bg-red-500 hover:bg-red-600'}`}
+                >
+                    {isDeleting ? 'Menghapus...' : 'Hapus'}
+                </button>
+            </div>
+
+            {/* Download Button */}
+            <div className="w-2/3 mx-auto mt-20">
+                <Button type="primary">
+                    Download
+                </Button>
+            </div>
+            <div className="h-8"></div>
         </div>
     );
 };
