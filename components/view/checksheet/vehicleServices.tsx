@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import Image from 'next/image';
 import React, { useEffect, useState } from 'react';
 import { towingParts, forkliftParts, truckParts } from '@/data/parts';
@@ -56,6 +57,8 @@ export default function VehicleServices({ vehicleType = 'forklift' }: VehicleSer
     const partsPerSlide = 6;
     const totalSlides = Math.ceil(parts.length / partsPerSlide);
     const idChecksheet = JSON.parse(localStorage.getItem('checksheetProfile') || '{}')?.id;
+    const editMode = typeof window !== 'undefined' && localStorage.getItem('editMode') === 'true';
+    const editId = typeof window !== 'undefined' ? localStorage.getItem('editChecksheetId') : null;
 
     // Minimum swipe distance (in px) to trigger slide change
     const minSwipeDistance = 50;
@@ -84,18 +87,46 @@ export default function VehicleServices({ vehicleType = 'forklift' }: VehicleSer
 
         try {
             const supabase = createSupabaseBrowserClient();
+            if (editMode && editId) {
+                // Clean existing parts for this checksheet, then insert the new edited parts
+                const { error: delErr } = await supabase
+                    .from('checksheetParts')
+                    .delete()
+                    .eq('id_checksheet', editId);
+                if (delErr) {
+                    toast.error('Gagal memperbarui data. Coba lagi.');
+                    return;
+                }
 
-            const { data, error } = await supabase
-                .from('checksheetParts')
-                .insert(formData)
-                .select();
+                const { data, error } = await supabase
+                    .from('checksheetParts')
+                    .insert(formData)
+                    .select();
 
-            if (error || !data) {
-                toast.error('Gagal menyimpan data. Coba lagi.');
-                return;
+                if (error || !data) {
+                    toast.error('Gagal menyimpan data. Coba lagi.');
+                    return;
+                }
+            } else {
+                const { data, error } = await supabase
+                    .from('checksheetParts')
+                    .insert(formData)
+                    .select();
+
+                if (error || !data) {
+                    toast.error('Gagal menyimpan data. Coba lagi.');
+                    return;
+                }
             }
 
             toast.success('Data tersimpan');
+            // Clear edit flags after successful save
+            if (editMode) {
+                localStorage.removeItem('editMode');
+                localStorage.removeItem('editChecksheetId');
+                localStorage.removeItem('editProfile');
+                localStorage.removeItem('editParts');
+            }
             router.push('/history');
         } catch (err) {
             toast.error('Terjadi kesalahan. Silakan coba lagi.');
@@ -193,9 +224,9 @@ export default function VehicleServices({ vehicleType = 'forklift' }: VehicleSer
         }));
     }
 
-    const selectCondition = (index: number) => {
+    const selectCondition = (index: number, kondisi: string) => {
         if (isSaved) return;
-        formData[selectedPartIndex].pengecekan[index].kondisi = 'Baik';
+        formData[selectedPartIndex].pengecekan[index].kondisi = kondisi;
         setFormData([...formData]);
     };
 
@@ -207,6 +238,26 @@ export default function VehicleServices({ vehicleType = 'forklift' }: VehicleSer
 
     useEffect(() => {
         const tempData = mapParts();
+        // If editing, prefill with existing parts from localStorage
+        if (editMode) {
+            try {
+                const raw = localStorage.getItem('editParts');
+                const parsed = raw ? JSON.parse(raw) : null;
+                if (Array.isArray(parsed) && parsed.length) {
+                    // Map to expected payload shape and ensure id_checksheet is correct
+                    const mapped = parsed.map((p: any) => ({
+                        id_checksheet: parseInt(editId || idChecksheet, 10),
+                        partName: p.partName ?? p.partname ?? p.name,
+                        pengecekan: (p.pengecekan || []).map((k: any) => ({ text: k.text, kondisi: k.kondisi })),
+                        note: p.note ?? '',
+                    }));
+                    setFormData(mapped);
+                    return;
+                }
+            } catch {
+                // fall back to defaults
+            }
+        }
         setFormData(tempData);
     }, [parts]);
 
@@ -330,23 +381,20 @@ export default function VehicleServices({ vehicleType = 'forklift' }: VehicleSer
                 <div className="w-full mt-6 bg-[#9FB1EB] rounded-3xl p-6 text-white">
                     {/* Form Fields */}
                     <div className="space-y-4">
-                        <div className="grid grid-cols-2 gap-2 w-full">
+                        <div className="grid grid-cols-1 gap-2 w-full">
                             {parts[selectedPartIndex]?.kondisi?.map((k, i) => (
-                                <div
-                                    key={i}
-                                    className={`relative ${isSaved ? 'cursor-not-allowed' : 'cursor-pointer'} ${i === parts[selectedPartIndex]?.kondisi?.length - 1 && parts[selectedPartIndex]?.kondisi?.length % 2 === 1 ? "col-span-2" : ""}`}
-                                    onClick={() => selectCondition(i)}
-                                >
-                                    <div className={`w-full p-3 rounded-2xl text-primary border-2 font-medium ${isSaved ? 'bg-gray-200' : 'bg-white'} ${formData[selectedPartIndex]?.pengecekan[i].kondisi === 'Baik' && 'border-primary'}`}>
+                                <div key={i}>
+                                    <div className={`w-full flex justify-between items-center p-3 rounded-2xl text-primary border-2 font-medium ${isSaved ? 'bg-gray-200' : 'bg-white'}`}>
                                         {k.text}
-                                    </div>
-                                    {formData[selectedPartIndex]?.pengecekan[i].kondisi === 'Baik' && (
-                                        <div className="absolute top-2 right-2 w-6 h-6 bg-primary rounded-full flex items-center justify-center">
-                                            <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                            </svg>
+                                        <div className="flex flex-col gap-1">
+                                            <div onClick={() => selectCondition(i, 'Baik')} className={`w-full px-4 rounded-md text-primary border border-solid border-green-500 font-medium ${formData[selectedPartIndex]?.pengecekan[i].kondisi === 'Baik' ? 'bg-green-500' : 'bg-white'} ${isSaved && 'opacity-70'}`}>
+                                                OK
+                                            </div>
+                                            <div onClick={() => selectCondition(i, 'Not Good')} className={`w-full px-4 rounded-md text-primary border border-solid border-red-500 font-medium ${formData[selectedPartIndex]?.pengecekan[i].kondisi === 'Not Good' ? 'bg-red-500' : 'bg-white'} ${isSaved && 'opacity-70'}`}>
+                                                NG
+                                            </div>
                                         </div>
-                                    )}
+                                    </div>
                                 </div>
                             ))}
                         </div>

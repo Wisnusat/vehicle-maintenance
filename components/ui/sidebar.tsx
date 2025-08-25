@@ -14,11 +14,6 @@ const menuItemsChecksheet = [
         href: "/maintenance"
     },
     {
-        name: "Component",
-        icon: "/icons/component.svg",
-        href: "/maintenance/services"
-    },
-    {
         name: "History",
         icon: "/icons/history.svg",
         href: "/history"
@@ -56,7 +51,7 @@ export function Sidebar() {
                     {/* Logo */}
                     <div className="flex p-4">
                         <Image
-                            src="/images/logo.svg"
+                            src="/images/logo_new.svg"
                             alt="Logo"
                             width={120}
                             height={40}

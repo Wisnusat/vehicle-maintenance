@@ -7,6 +7,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
+import { useGlobalState } from '@/contexts/GlobalStateContext';
 
 type VehicleDetail = {
     name: string;
@@ -32,10 +33,12 @@ type ChecksheetPartRow = {
 
 export default function HistoryDetail({ id }: { id?: string }) {
     const router = useRouter();
+    const { changeVehicleType } = useGlobalState();
     const [vehicleDetail, setVehicleDetail] = useState<VehicleDetail | null>(null);
     const [partsDetails, setPartsDetails] = useState<ChecksheetPartRow[]>([]);
     const [isLoading, setIsLoading] = useState<boolean>(false);
     const [isDeleting, setIsDeleting] = useState<boolean>(false);
+    const [profileRaw, setProfileRaw] = useState<any | null>(null);
 
     const vehicleType = useMemo(() => vehicleDetail?.vehicleType, [vehicleDetail]);
 
@@ -80,6 +83,27 @@ export default function HistoryDetail({ id }: { id?: string }) {
         return [];
     };
 
+    const handleEdit = () => {
+        if (!profileRaw) return;
+        try {
+            // Mark edit mode and persist current data for prefill
+            localStorage.setItem('editMode', 'true');
+            localStorage.setItem('editChecksheetId', id || '');
+            localStorage.setItem('editProfile', JSON.stringify(profileRaw));
+            localStorage.setItem('editParts', JSON.stringify(partsDetails));
+
+            // Ensure vehicle type matches the record for subsequent pages
+            if (profileRaw?.vehicleType) {
+                changeVehicleType(String(profileRaw.vehicleType));
+            }
+
+            // Go to input form to edit, then proceed to services
+            router.push('/checksheet/inputForm');
+        } catch {
+            toast.error('Tidak dapat memulai mode ubah.');
+        }
+    };
+
     useEffect(() => {
         const fetchDetail = async () => {
             if (!id) return;
@@ -110,6 +134,7 @@ export default function HistoryDetail({ id }: { id?: string }) {
                     vehicleType: profile.vehicleType ?? undefined,
                 };
                 setVehicleDetail(mappedVehicle);
+                setProfileRaw(profile);
 
                 const { data: parts, error: partsErr } = await supabase
                     .from('checksheetParts')
@@ -221,7 +246,7 @@ export default function HistoryDetail({ id }: { id?: string }) {
                 <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-200">
                     <div className="flex justify-between items-center mb-4">
                         <h3 className="text-primary font-semibold text-lg">Detail Unit</h3>
-                        <button className="bg-primary text-white px-4 py-2 rounded-full text-sm font-medium">
+                        <button onClick={handleEdit} className="bg-primary text-white px-4 py-2 rounded-full text-sm font-medium">
                             UBAH
                         </button>
                     </div>
@@ -279,11 +304,11 @@ export default function HistoryDetail({ id }: { id?: string }) {
                             </div>
                             <div>
                                 <p className="text-gray-500 mb-1">Pengecekan</p>
-                                <p className="text-primary font-medium leading-relaxed flex-col gap-2">{part?.pengecekan?.map((pengecekan, i) => <div key={i}>{pengecekan.text} (<span className={`font-medium ${pengecekan.kondisi === 'Baik' ? 'text-green-600' :
+                                <div className="text-primary font-medium leading-relaxed flex-col gap-2">{part?.pengecekan?.map((pengecekan, i) => <div key={i}>{pengecekan.text} (<span className={`font-medium ${pengecekan.kondisi === 'Baik' ? 'text-green-600' :
                                         pengecekan.kondisi === 'Problem' ? 'text-red-600' : 'text-primary'
                                     }`}>
                                     {pengecekan.kondisi}
-                                </span>)</div>)}</p>
+                                </span>)</div>)}</div>
                             </div>
                         </div>
                     </div>

@@ -6,7 +6,6 @@ import { Eye, EyeOff } from 'lucide-react';
 
 type SigninPageProps = {
     onContinue: (data: FormData) => void;
-    type: string;
     isLoading: boolean;
 }
 
@@ -15,7 +14,7 @@ export type FormData = {
     nik: string;
 }
 
-export default function SigninPage({ onContinue, type, isLoading }: SigninPageProps) {
+export default function SigninPage({ onContinue, isLoading }: SigninPageProps) {
   const [name, setName] = useState<string>("");
   const [nik, setNik] = useState<string>("");
   const [showNik, setShowNik] = useState<boolean>(false);
@@ -47,12 +46,12 @@ export default function SigninPage({ onContinue, type, isLoading }: SigninPagePr
     <div className="min-h-screen bg-gradient-to-b flex flex-col items-center px-6 py-8 overflow-hidden" style={{background: 'linear-gradient(to bottom, #9FB1EB, #3A3CB8)'}}>
       {/* Logo */}
       <div className="flex w-full items-start">
-      <Image src="/images/logo.svg" alt="Logo" width={100} height={100} />
+      <Image src="/images/logo_new.svg" alt="Logo" width={100} height={100} />
       </div>
 
       {/* Title */}
-      <h1 className="text-4xl font-extrabold text-white mb-16 text-left">
-        {type === 'maintenance' ? 'Maintenance' : 'Check Sheet'}<br /><span className='ml-12'>Kendaraan</span>
+      <h1 className="text-4xl font-extrabold text-white mb-16 text-center">
+        Pengecekan Kendaraan
       </h1>
 
       {/* Image Placeholder */}

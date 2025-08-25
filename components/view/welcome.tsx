@@ -11,7 +11,7 @@ export default function WelcomePage({ onContinue }: WelcomePageProps) {
     <div className="min-h-screen bg-gradient-to-b flex flex-col items-center px-6 py-8 overflow-hidden" style={{background: 'linear-gradient(to bottom, #9FB1EB, #3A3CB8)'}}>
       {/* Logo */}
       <div className="flex w-full items-start">
-      <Image src="/images/logo.svg" alt="Logo" width={100} height={100} />
+      <Image src="/images/logo_new.svg" alt="Logo" width={100} height={100} />
       </div>
 
       {/* Title */}

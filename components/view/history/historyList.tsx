@@ -1,10 +1,13 @@
+"use client";
 import { Sidebar } from '@/components/ui/sidebar';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { useGlobalState } from '@/contexts/GlobalStateContext';
+import { Drawer, DrawerContent, DrawerFooter, DrawerHeader, DrawerTitle, DrawerTrigger, DrawerClose } from '@/components/ui/drawer';
+import { Input } from '@/components/ui/input';
 
 type HistoryItem = {
     id: string;
@@ -14,20 +17,68 @@ type HistoryItem = {
     vehicleType: string;
 };
 
+// Date input that opens picker when any area is clicked
+function DateClickableInput({ id, value, onChange }: { id: string; value: string; onChange: (v: string) => void }) {
+    const inputRef = useRef<HTMLInputElement | null>(null);
+
+    const openPicker = () => {
+        const el = inputRef.current as (HTMLInputElement & { showPicker?: () => void }) | null;
+        if (!el) return;
+        if (typeof el.showPicker === 'function') {
+            el.showPicker();
+        } else {
+            el.focus();
+            el.click();
+        }
+    };
+
+    return (
+        <div onClick={openPicker} className="bg-white shadow-md rounded-md cursor-pointer">
+            <Input
+                id={id}
+                ref={inputRef}
+                type="date"
+                value={value}
+                onChange={(e) => onChange(e.target.value)}
+                className="file:text-foreground placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground dark:bg-input/30 border-input flex h-9 w-full min-w-0 rounded-md border bg-transparent px-3 py-1 text-base shadow-xs transition-[color,box-shadow] outline-none disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive"
+            />
+        </div>
+    );
+}
+
 export default function HistoryList() {
     const dataUser = JSON.parse(localStorage.getItem('user') || '{}');
     const router = useRouter();
     const { method } = useGlobalState();
     const [historyItems, setHistoryItems] = useState<HistoryItem[]>([]);
+    const [vehicleType, setVehicleType] = useState<string>('all');
+    const [startDate, setStartDate] = useState<string>('');
+    // const [endDate, setEndDate] = useState<string>('');
 
-    const fetchData = async () => {
+    const fetchData = useCallback(async (opts?: { vehicleType?: string; startDate?: string; endDate?: string }) => {
         const supabase = createSupabaseBrowserClient();
 
-        const { data, error } = await supabase
+        let query = supabase
             .from('checksheetProfile')
             .select()
             .ilike('fullName', dataUser.fullName)
             .eq('nik', dataUser.nik);
+
+        const vt = opts?.vehicleType ?? vehicleType;
+        const sd = opts?.startDate ?? startDate;
+        // const ed = opts?.endDate ?? endDate;
+
+        if (vt && vt !== 'all') {
+            query = query.eq('vehicleType', vt);
+        }
+        if (sd) {
+            query = query.eq('tanggal', sd);
+        }
+        // if (ed) {
+        //     query = query.lte('tanggal', ed);
+        // }
+
+        const { data, error } = await query;
 
         if (error || !data) {
             toast.error('Gagal mengambil data. Coba lagi.');
@@ -35,11 +86,11 @@ export default function HistoryList() {
         }
 
         setHistoryItems(data);
-    }
+    }, [dataUser.fullName, dataUser.nik, vehicleType, startDate]);
 
     useEffect(() => {
         fetchData();
-    }, []);
+    }, [fetchData]);
 
     return (
         <div className="min-h-screen bg-secondary">
@@ -54,7 +105,78 @@ export default function HistoryList() {
                 {/* Top Navigation */}
                 <div className="flex justify-between items-center mb-8">
                     <Sidebar />
-                    <Image src="/images/filter.svg" alt="Filter" width={26} height={26} />
+                    <Drawer direction="right">
+                        <DrawerTrigger asChild>
+                            <button aria-label="Open Filter" className="p-2 rounded-lg hover:bg-gray-100">
+                                <Image src="/images/filter.svg" alt="Filter" width={26} height={26} />
+                            </button>
+                        </DrawerTrigger>
+                        <DrawerContent className="bg-primary">
+                            <DrawerHeader className="border-b">
+                                <DrawerTitle className="text-lg text-white">Filter</DrawerTitle>
+                            </DrawerHeader>
+
+                            <div className="p-4 space-y-4">
+                                {/* Vehicle Type Selection */}
+                                <div className="flex flex-col gap-1">
+                                    <label className="text-sm text-white">Vehicle Type</label>
+                                    <select
+                                        value={vehicleType}
+                                        onChange={(e) => setVehicleType(e.target.value)}
+                                        className="bg-white shadow-md p-2 rounded-lg"
+                                    >
+                                        <option value="all">All</option>
+                                        <option value="forklift">Forklift</option>
+                                        <option value="towing">Towing</option>
+                                        <option value="truck">Truck</option>
+                                        <option value="lain-lain">Lain-Lain</option>
+                                    </select>
+                                </div>
+
+                                {/* Date Range */}
+                                <div className="grid grid-cols-1 gap-4">
+                                    <div className="flex flex-col gap-1">
+                                        <label htmlFor="startDate" className="text-sm text-white">From</label>
+                                        <DateClickableInput
+                                            id="startDate"
+                                            value={startDate}
+                                            onChange={(v) => setStartDate(v)}
+                                        />
+                                    </div>
+                                    {/* <div className="flex flex-col gap-1">
+                                        <label htmlFor="endDate" className="text-sm text-white">To</label>
+                                        <DateClickableInput
+                                            id="endDate"
+                                            value={endDate}
+                                            onChange={(v) => setEndDate(v)}
+                                        />
+                                    </div> */}
+                                </div>
+                            </div>
+
+                            <DrawerFooter className="border-t">
+                                {/* <DrawerClose asChild>
+                                    <button
+                                        onClick={() => fetchData({ vehicleType, startDate, endDate })}
+                                        className="w-full bg-primary text-white py-2 rounded-full font-medium"
+                                    >
+                                        Apply
+                                    </button>
+                                </DrawerClose> */}
+                                <DrawerClose asChild>
+                                    <button
+                                        onClick={() => { setVehicleType('all'); setStartDate(''); fetchData({ vehicleType: 'all', startDate: '', endDate: '' }); }}
+                                        className="w-full bg-gray-200 text-primary py-2 rounded-full font-medium"
+                                    >
+                                        Clear
+                                    </button>
+                                </DrawerClose>
+                                <DrawerClose asChild>
+                                    <button className="w-full py-2 rounded-full bg-red-500">Close</button>
+                                </DrawerClose>
+                            </DrawerFooter>
+                        </DrawerContent>
+                    </Drawer>
                 </div>
 
                 {/* History List */}
@@ -91,7 +213,7 @@ export default function HistoryList() {
                                         <div className="flex-shrink-0">
                                             <Image
                                                 src="/images/towing.svg"
-                                                alt="Forklift"
+                                                alt="Towing"
                                                 width={60}
                                                 height={60}
                                                 className="object-contain"
@@ -103,7 +225,7 @@ export default function HistoryList() {
                                         <div className="flex-shrink-0">
                                             <Image
                                                 src="/images/truk.svg"
-                                                alt="Forklift"
+                                                alt="Truck"
                                                 width={60}
                                                 height={60}
                                                 className="object-contain"

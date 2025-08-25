@@ -1,10 +1,11 @@
 import Image from 'next/image';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { useRouter } from 'next/navigation';
 import { Sidebar } from '@/components/ui/sidebar';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
+import { lines, listForklift, listSim, listTowing, noPolisiList, ruteDeliveryList, shift, zonaForklift, zonaTowing } from '@/data/dropdown';
 
 type FormMaintenanceProps = {
     vehicleType: string;
@@ -20,6 +21,7 @@ type FormData = {
     // Non-truck
     noUnit: string;
     line: string;
+    zona: string;
 
     // Truck
     noPolisi: string;
@@ -36,44 +38,11 @@ type FormData = {
 
 type FormErrors = Partial<Record<keyof FormData, string>>;
 
-const noPolisiList = [
-    { label: 'B 9809 FCD', value: 'B9809FCD' },
-    { label: 'B 9029 FCE', value: 'B9029FCE' },
-    { label: 'B 9774 FCL', value: 'B9774FCL' },
-    { label: 'B 9193 FCM', value: 'B9193FCM' },
-    { label: 'B 9231 FCM', value: 'B9231FCM' },
-    { label: 'B 9030 FCE', value: 'B9030FCE' },
-    { label: 'B 9221 FCE', value: 'B9221FCE' },
-    { label: 'B 9297 FCM', value: 'B9297FCM' },
-    { label: 'B 9224 FCE', value: 'B9224FCE' },
-    { label: 'B 9226 FCE', value: 'B9226FCE' },
-    { label: 'B 9783 FCL', value: 'B9783FCL' },
-    { label: 'B 9801 FCD', value: 'B9801FCD' },
-    { label: 'B 9803 FCD', value: 'B9803FCD' },
-    { label: 'B 9426 FCC', value: 'B9426FCC' },
-    { label: 'B 9794 FCB', value: 'B9794FCB' },
-    { label: 'B 9619 DO', value: 'B9619DO' },
-    { label: 'B 9802 FCD', value: 'B9802FCD' },
-    { label: 'B 9804 FCD', value: 'B9804FCD' },
-];
-
-const ruteDeliveryList = [
-    { label: 'FTI', value: 'FTI' },
-    { label: 'TMMIN KRW 4U', value: 'TMMIN_KRW_4U' },
-    { label: 'TMMIN KRW 4P', value: 'TMMIN_KRW_4P' },
-    { label: 'TMMIN KRW CEVD', value: 'TMMIN_KRW_CEVD' },
-    { label: 'NTC - 1', value: 'NTC_1' },
-    { label: 'WAREHOUSE 3', value: 'WAREHOUSE_3' },
-    { label: 'SAFETY STOCK', value: 'SAFETY_STOCK' },
-    { label: 'Suzuki Indo Mobil (SIM)', value: 'SUZUKI_SIM' },
-    { label: 'IPPI', value: 'IPPI' },
-    { label: 'ASKA', value: 'ASKA' },
-    { label: 'HYUNDAI', value: 'HYUNDAI' },
-];
-
 export default function FormMaintenance({ vehicleType, nik, fullName }: FormMaintenanceProps) {
     const router = useRouter();
     const isTruck = vehicleType?.toLowerCase() === 'truck';
+    const listNoUnit = vehicleType?.toLowerCase() === 'forklift' ? listForklift : listTowing;
+    const listZona = vehicleType?.toLowerCase() === 'forklift' ? zonaForklift : zonaTowing;
 
     const [formData, setFormData] = useState<FormData>({
         nik: nik,
@@ -83,6 +52,7 @@ export default function FormMaintenance({ vehicleType, nik, fullName }: FormMain
         // Non-truck
         noUnit: '',
         line: '',
+        zona: '',
 
         // Truck
         noPolisi: '',
@@ -99,6 +69,37 @@ export default function FormMaintenance({ vehicleType, nik, fullName }: FormMain
 
     const [errors, setErrors] = useState<FormErrors>({});
     const [isSaved, setIsSaved] = useState<boolean>(false);
+
+    // Prefill when editing
+    useEffect(() => {
+        const editMode = localStorage.getItem('editMode') === 'true';
+        if (!editMode) return;
+        const raw = localStorage.getItem('editProfile');
+        if (!raw) return;
+        try {
+            const p = JSON.parse(raw);
+            setFormData((prev) => ({
+                ...prev,
+                nik: p.nik ?? prev.nik,
+                fullName: p.fullName ?? prev.fullName,
+                shift: p.shift ?? prev.shift,
+                noUnit: p.noUnit ?? prev.noUnit,
+                line: p.line ?? prev.line,
+                zona: p.zona ?? prev.zona,
+                noPolisi: p.noPolisi ?? prev.noPolisi,
+                ruteDelivery: p.ruteDelivery ?? prev.ruteDelivery,
+                sim: p.sim ?? prev.sim,
+                sioDepnaker: p.sioDepnaker ?? prev.sioDepnaker,
+                stnk: p.stnk ?? prev.stnk,
+                stickerKir: p.stickerKir ?? prev.stickerKir,
+                ibm: p.ibm ?? prev.ibm,
+                tanggal: p.tanggal ?? prev.tanggal,
+                waktuPengisian: p.waktuPengisian ?? prev.waktuPengisian,
+            }));
+        } catch {
+            // ignore
+        }
+    }, []);
 
     const handleInputChange = (field: keyof FormData, value: string) => {
         setFormData((prev) => ({
@@ -140,6 +141,7 @@ export default function FormMaintenance({ vehicleType, nik, fullName }: FormMain
             // Non-truck required fields
             if (!formData.noUnit.trim()) newErrors.noUnit = 'No Unit is required';
             if (!formData.line.trim()) newErrors.line = 'Line is required';
+            if (!formData.zona.trim()) newErrors.zona = 'Zona is required';
         }
 
         setErrors(newErrors);
@@ -152,25 +154,47 @@ export default function FormMaintenance({ vehicleType, nik, fullName }: FormMain
 
         try {
             const supabase = createSupabaseBrowserClient();
-
             const payload = {
                 ...formData,
                 vehicleType,
-            };
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            } as any;
 
-            const { data, error } = await supabase
-                .from('checksheetProfile')
-                .insert([payload])
-                .select()
-                .single();
+            const editMode = localStorage.getItem('editMode') === 'true';
+            const editId = localStorage.getItem('editChecksheetId');
 
-            if (error || !data) {
-                console.error('Insert error:', error);
-                toast.error('Gagal menyimpan data. Coba lagi.');
-                return;
+            if (editMode && editId) {
+                const { data, error } = await supabase
+                    .from('checksheetProfile')
+                    .update(payload)
+                    .eq('id', editId)
+                    .select()
+                    .single();
+
+                if (error || !data) {
+                    console.error('Update error:', error);
+                    toast.error('Gagal memperbarui data. Coba lagi.');
+                    return;
+                }
+
+                // Also set checksheetProfile for downstream consumption
+                localStorage.setItem('checksheetProfile', JSON.stringify(data));
+            } else {
+                const { data, error } = await supabase
+                    .from('checksheetProfile')
+                    .insert([payload])
+                    .select()
+                    .single();
+
+                if (error || !data) {
+                    console.error('Insert error:', error);
+                    toast.error('Gagal menyimpan data. Coba lagi.');
+                    return;
+                }
+
+                localStorage.setItem('checksheetProfile', JSON.stringify(data));
             }
 
-            localStorage.setItem('checksheetProfile', JSON.stringify(data));
             toast.success('Data tersimpan');
             router.push('/checksheet/services');
         } catch (err) {
@@ -237,18 +261,24 @@ export default function FormMaintenance({ vehicleType, nik, fullName }: FormMain
                 </div>
 
                 {/* Shift */}
-                <div>
+                <div className="flex flex-col">
                     <label>Shift</label>
-                    <Input
+                    <select
                         id="shift"
-                        type="text"
                         value={formData.shift}
                         onChange={(e) => handleInputChange('shift', e.target.value)}
-                        placeholder="Shift"
-                        aria-invalid={!!errors.shift}
                         disabled={isSaved}
-                        className={`bg-white shadow-md ${errors.shift ? 'border-red-500' : ''}`}
-                    />
+                        className={`bg-white shadow-md p-1.5 rounded-lg ${errors.shift ? 'border-red-500 border border-solid' : ''
+                            }`}
+                        aria-invalid={!!errors.shift}
+                    >
+                        <option value="">Pilih Shift</option>
+                        {shift.map((item) => (
+                            <option key={item.value} value={item.value}>
+                                {item.label}
+                            </option>
+                        ))}
+                    </select>
                     {errors.shift && <p className="text-red-500 text-sm mt-1">{errors.shift}</p>}
                 </div>
 
@@ -303,35 +333,69 @@ export default function FormMaintenance({ vehicleType, nik, fullName }: FormMain
                 ) : (
                     <>
                         {/* No Unit */}
-                        <div>
+                        <div className="flex flex-col">
                             <label>No Unit</label>
-                            <Input
+                            <select
                                 id="noUnit"
-                                type="text"
                                 value={formData.noUnit}
                                 onChange={(e) => handleInputChange('noUnit', e.target.value)}
-                                placeholder="No Unit"
-                                aria-invalid={!!errors.noUnit}
                                 disabled={isSaved}
-                                className={`bg-white shadow-md ${errors.noUnit ? 'border-red-500' : ''}`}
-                            />
+                                className={`bg-white shadow-md p-1.5 rounded-lg ${errors.noUnit ? 'border-red-500 border border-solid' : ''
+                                    }`}
+                                aria-invalid={!!errors.noUnit}
+                            >
+                                <option value="">Pilih No Unit</option>
+                                {listNoUnit.map((item) => (
+                                    <option key={item.value} value={item.value}>
+                                        {item.label}
+                                    </option>
+                                ))}
+                            </select>
                             {errors.noUnit && <p className="text-red-500 text-sm mt-1">{errors.noUnit}</p>}
                         </div>
 
                         {/* Line */}
-                        <div>
+                        <div className="flex flex-col">
                             <label>Line</label>
-                            <Input
+                            <select
                                 id="line"
-                                type="text"
                                 value={formData.line}
                                 onChange={(e) => handleInputChange('line', e.target.value)}
-                                placeholder="Line"
-                                aria-invalid={!!errors.line}
                                 disabled={isSaved}
-                                className={`bg-white shadow-md ${errors.line ? 'border-red-500' : ''}`}
-                            />
+                                className={`bg-white shadow-md p-1.5 rounded-lg ${errors.line ? 'border-red-500 border border-solid' : ''
+                                    }`}
+                                aria-invalid={!!errors.line}
+                            >
+                                <option value="">Pilih Line</option>
+                                {lines.map((item) => (
+                                    <option key={item.value} value={item.value}>
+                                        {item.label}
+                                    </option>
+                                ))}
+                            </select>
                             {errors.line && <p className="text-red-500 text-sm mt-1">{errors.line}</p>}
+                        </div>
+
+                        {/* Zona */}
+                        <div className="flex flex-col">
+                            <label>Zona</label>
+                            <select
+                                id="zona"
+                                value={formData.zona}
+                                onChange={(e) => handleInputChange('zona', e.target.value)}
+                                disabled={isSaved}
+                                className={`bg-white shadow-md p-1.5 rounded-lg ${errors.zona ? 'border-red-500 border border-solid' : ''
+                                    }`}
+                                aria-invalid={!!errors.zona}
+                            >
+                                <option value="">Pilih Zona</option>
+                                {listZona.map((item) => (
+                                    <option key={item.value} value={item.value}>
+                                        {item.label}
+                                    </option>
+                                ))}
+                            </select>
+                            {errors.zona && <p className="text-red-500 text-sm mt-1">{errors.zona}</p>}
                         </div>
                     </>
                 )}
@@ -373,16 +437,22 @@ export default function FormMaintenance({ vehicleType, nik, fullName }: FormMain
                     <>
                         <div>
                             <label>SIM</label>
-                            <Input
+                            <select
                                 id="sim"
-                                type="text"
-                                placeholder="SIM (Min B1)"
                                 value={formData.sim}
                                 onChange={(e) => handleInputChange('sim', e.target.value)}
                                 disabled={isSaved}
-                                className={`bg-white shadow-md ${errors.sim ? 'border-red-500' : ''}`}
+                                className={`bg-white shadow-md p-1.5 rounded-lg ${errors.sim ? 'border-red-500 border border-solid' : ''
+                                    }`}
                                 aria-invalid={!!errors.sim}
-                            />
+                            >
+                                <option value="">Pilih SIM</option>
+                                {listSim.map((item) => (
+                                    <option key={item.value} value={item.value}>
+                                        {item.label}
+                                    </option>
+                                ))}
+                            </select>
                             {errors.sim && (
                                 <p className="text-red-500 text-sm mt-1">{errors.sim}</p>
                             )}

@@ -1,14 +1,12 @@
 "use client";
 import React, { useState } from 'react';
 import SigninPage, { FormData } from '@/components/view/signin';
-import { useGlobalState } from '@/contexts/GlobalStateContext';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 
 export default function Page() {
     const router = useRouter();
-    const { method } = useGlobalState();
     const [isLoading, setIsLoading] = useState<boolean>(false);
     
     const submitForm = async (data: FormData) => {
@@ -37,11 +35,7 @@ export default function Page() {
             }
 
             localStorage.setItem('user', JSON.stringify(user));
-            if (method === 'maintenance') {
-                router.push('/maintenance');
-            } else {
-                router.push('/checksheet');
-            }
+            router.push('/method');
         } catch (e) {
             console.error(e);
             toast.error('Terjadi kesalahan. Silakan coba lagi.');
@@ -51,6 +45,6 @@ export default function Page() {
     }
 
     return (
-        <SigninPage type={method} onContinue={submitForm} isLoading={isLoading} />
+        <SigninPage onContinue={submitForm} isLoading={isLoading} />
     )
 }
