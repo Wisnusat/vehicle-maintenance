@@ -259,6 +259,7 @@ export default function VehicleServices({ vehicleType = 'forklift' }: VehicleSer
             }
         }
         setFormData(tempData);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [parts]);
 
     return (

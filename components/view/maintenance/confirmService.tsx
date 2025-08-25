@@ -1,63 +1,108 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useState } from 'react';
 import { Sidebar } from '@/components/ui/sidebar';
 import Image from 'next/image';
 import Button from '@/components/ui/Button';
 import { useRouter } from 'next/navigation';
+import { useEffect, useMemo } from 'react';
+import { createSupabaseBrowserClient } from '@/lib/supabase/client';
+import { toast } from 'sonner';
 
-type VehicleDetail = {
-    name: string;
-    kilometer: string;
+type MaintenanceRow = {
+    id: number | string;
+    nama: string;
     nik: string;
+    noKendaraan: string;
+    jenis_barang: string;
     tanggal: string;
-    noUnit: string;
+    waktu: string;
+};
+
+type DetailServisItem = {
+    jenisServis: string;
+    keterangan: string;
+    beforePhoto?: string | null;
+    afterPhoto?: string | null;
+};
+
+type MaintenanceDetailRow = {
+    id: number | string;
+    maintenance_id: number | string;
+    kilometer?: string | null;
+    tipeBarang?: string | null;
+    detailServis: DetailServisItem[];
 };
 
 export default function ConfirmService() {
     const router = useRouter();
+    const supabase = useMemo(() => createSupabaseBrowserClient(), []);
 
-    // Sample vehicle data
-    const vehicleDetail: VehicleDetail = {
-        name: 'XXX',
-        kilometer: 'XXX',
-        nik: 'XXX',
-        tanggal: 'XXXXXX',
-        noUnit: 'XXX'
-    };
+    const [loading, setLoading] = useState(true);
+    const [header, setHeader] = useState<MaintenanceRow | null>(null);
+    const [detail, setDetail] = useState<MaintenanceDetailRow | null>(null);
 
-    const [imagePreview, setImagePreview] = useState<string | null>(null);
-    const [imagePreview2, setImagePreview2] = useState<string | null>(null);
+    useEffect(() => {
+        const fetchData = async () => {
+            let maintenanceId: string | null = null;
+            try {
+                maintenanceId = sessionStorage.getItem('maintenance_current_id');
+            } catch {}
+            if (!maintenanceId) {
+                toast.error('Maintenance ID tidak ditemukan.');
+                setLoading(false);
+                return;
+            }
 
-    const handlePhotoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-        const file = event.target.files?.[0];
-        if (file) {
-            // Create image preview
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                setImagePreview(e.target?.result as string);
-            };
-            reader.readAsDataURL(file);
-        }
-    };
+            // Fetch header (maintenance)
+            const { data: headerData, error: headerErr } = await supabase
+                .from('maintenance')
+                .select('*')
+                .eq('id', maintenanceId)
+                .single();
+            if (headerErr) {
+                toast.error(`Gagal mengambil data maintenance: ${headerErr.message}`);
+            } else {
+                setHeader(headerData as MaintenanceRow);
+            }
 
-    const removePhoto = () => {
-        setImagePreview(null);
-    };
+            // Fetch detail (maintenance_detail)
+            const { data: detailData, error: detailErr } = await supabase
+                .from('maintenance_detail')
+                .select('*')
+                .eq('maintenance_id', maintenanceId)
+                .single();
 
-    const handlePhotoUploadAfter = (event: React.ChangeEvent<HTMLInputElement>) => {
-        const file = event.target.files?.[0];
-        if (file) {
-            // Create image preview
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                setImagePreview2(e.target?.result as string);
-            };
-            reader.readAsDataURL(file);
-        }
-    };
+            // Normalize/parse detailServis into array of objects
+            if (!detailErr && detailData) {
+                let parsed: DetailServisItem[] = [];
+                const raw = (detailData as any).detailServis;
+                try {
+                    if (Array.isArray(raw)) {
+                        if (raw.length > 0 && typeof raw[0] === 'string') {
+                            parsed = (raw as string[]).map((s) => {
+                                try { return JSON.parse(s); } catch { return null; }
+                            }).filter(Boolean) as DetailServisItem[];
+                        } else {
+                            parsed = raw as DetailServisItem[];
+                        }
+                    } else if (typeof raw === 'string') {
+                        const maybe = JSON.parse(raw);
+                        parsed = Array.isArray(maybe) ? maybe as DetailServisItem[] : [maybe as DetailServisItem];
+                    }
+                } catch {}
 
-    const removePhotoAfter = () => {
-        setImagePreview2(null);
-    };
+                (detailData as any).detailServis = parsed;
+            }
+            if (detailErr) {
+                toast.error(`Gagal mengambil detail servis: ${detailErr.message}`);
+            } else if (detailData) {
+                setDetail(detailData as MaintenanceDetailRow);
+            }
+
+            setLoading(false);
+        };
+        fetchData();
+    }, [supabase]);
 
     const handleNextClick = () => {
         router.push('/history');
@@ -120,233 +165,99 @@ export default function ConfirmService() {
                 </div>
             </div>
 
-            {/* Detail Unit Card */}
-            <div className="mx-6 mb-4">
-                <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-200">
-                    <div className="flex justify-between items-center mb-4">
-                        <h3 className="text-primary font-semibold text-lg">Detail Unit</h3>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4 text-sm">
-                        <div>
-                            <p className="text-gray-500 mb-1">Nama</p>
-                            <p className="text-primary font-medium">{vehicleDetail.name}</p>
-                        </div>
-                        <div>
-                            <p className="text-gray-500 mb-1">Kilometer</p>
-                            <p className="text-primary font-medium">{vehicleDetail.kilometer}</p>
-                        </div>
-                        <div>
-                            <p className="text-gray-500 mb-1">NIK</p>
-                            <p className="text-primary font-medium">{vehicleDetail.nik}</p>
-                        </div>
-                        <div>
-                            <p className="text-gray-500 mb-1">Tanggal</p>
-                            <p className="text-primary font-medium">{vehicleDetail.tanggal}</p>
-                        </div>
-                        <div className="col-span-2">
-                            <p className="text-gray-500 mb-1">No Unit/Polisi</p>
-                            <p className="text-primary font-medium">{vehicleDetail.noUnit}</p>
-                        </div>
-                    </div>
+            {/* Loading / Content */}
+            {loading ? (
+                <div className="px-6 pb-8">
+                    <div className="bg-white rounded-2xl p-6 shadow-sm text-center text-gray-500">Loading...</div>
                 </div>
-            </div>
+            ) : (
+                <>
+                    {/* Detail Unit Card */}
+                    <div className="mx-6 mb-4">
+                        <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-200">
+                            <div className="flex justify-between items-center mb-4">
+                                <h3 className="text-primary font-semibold text-lg">Detail Unit</h3>
+                            </div>
 
-            {/* Detail Servis Card */}
-            <div className="mx-6 mb-4">
-                <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-200">
-                    <div className="flex justify-between items-center mb-4">
-                        <h3 className="text-primary font-semibold text-lg">Detail Servis</h3>
+                            <div className="grid grid-cols-2 gap-4 text-sm">
+                                <div>
+                                    <p className="text-gray-500 mb-1">Nama</p>
+                                    <p className="text-primary font-medium">{header?.nama || '-'}</p>
+                                </div>
+                                <div>
+                                    <p className="text-gray-500 mb-1">{detail?.tipeBarang ? 'Tipe Barang' : 'Kilometer'}</p>
+                                    <p className="text-primary font-medium">{detail?.tipeBarang || detail?.kilometer || '-'}</p>
+                                </div>
+                                <div>
+                                    <p className="text-gray-500 mb-1">NIK</p>
+                                    <p className="text-primary font-medium">{header?.nik || '-'}</p>
+                                </div>
+                                <div>
+                                    <p className="text-gray-500 mb-1">Tanggal</p>
+                                    <p className="text-primary font-medium">{header?.tanggal || '-'}</p>
+                                </div>
+                                <div className="col-span-2">
+                                    <p className="text-gray-500 mb-1">No Unit/Polisi</p>
+                                    <p className="text-primary font-medium">{header?.noKendaraan || header?.jenis_barang || '-'}</p>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
-                    <div className="space-y-4">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">Jenis Servis</label>
-                            <input
-                                type="text"
-                                placeholder='Jenis Servis'
-                                className="w-full p-3 border-b-1 border-gray-300 focus:ring-2 focus:ring-primary focus:border-transparent"
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">Keterangan</label>
-                            <input
-                                type="text"
-                                placeholder='Keterangan'
-                                className="w-full p-3 border-b-1 border-gray-300 focus:ring-2 focus:ring-primary focus:border-transparent"
-                            />
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            {/* Photo Upload Section */}
-            <div className="bg-white rounded-2xl p-6 shadow-sm mx-6 mb-4">
-                <div className="mb-4">
-                    <label className="block text-primary font-medium text-sm mb-4">
-                        Photo Sebelum Perbaikan
-                    </label>
-
-                    {/* Upload Area */}
-                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-8">
-                        {imagePreview ? (
-                            /* Image Preview */
-                            <div className="space-y-4">
-                                <div className="relative w-full h-48 rounded-lg overflow-hidden">
-                                    <Image
-                                        src={imagePreview}
-                                        alt="Preview"
-                                        fill
-                                        className="object-cover"
-                                    />
+                    {/* Detail Servis List */}
+                    <div className="mx-6 mb-4 space-y-4">
+                        {(detail?.detailServis || []).map((item, idx) => (
+                            <div key={idx} className="bg-white rounded-2xl p-4 shadow-sm border border-gray-200">
+                                <div className="flex justify-between items-center mb-4">
+                                    <h3 className="text-primary font-semibold text-lg">Detail Servis #{idx + 1}</h3>
                                 </div>
-                                <div className="flex justify-center space-x-4">
-                                    <label
-                                        htmlFor="photo-upload"
-                                        className="bg-primary text-white px-4 py-2 rounded-lg cursor-pointer hover:bg-primary/90 transition-colors text-sm"
-                                    >
-                                        Change Photo
-                                    </label>
-                                    <button
-                                        type="button"
-                                        onClick={removePhoto}
-                                        className="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition-colors text-sm"
-                                    >
-                                        Remove
-                                    </button>
+                                <div className="space-y-4">
+                                    <div>
+                                        <p className="text-gray-500 mb-1">Jenis Servis</p>
+                                        <p className="text-primary font-medium">{item.jenisServis || '-'}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-gray-500 mb-1">Keterangan</p>
+                                        <p className="text-primary font-medium whitespace-pre-wrap">{item.keterangan || '-'}</p>
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <p className="text-gray-500 mb-2">Photo Sebelum</p>
+                                            {item.beforePhoto ? (
+                                                <div className="relative w-full h-48 rounded-lg overflow-hidden border">
+                                                    <Image src={item.beforePhoto} alt={`before-${idx}`} fill className="object-cover" />
+                                                </div>
+                                            ) : (
+                                                <div className="w-full h-48 rounded-lg bg-gray-100 flex items-center justify-center text-gray-400">No photo</div>
+                                            )}
+                                        </div>
+                                        <div>
+                                            <p className="text-gray-500 mb-2">Photo Sesudah</p>
+                                            {item.afterPhoto ? (
+                                                <div className="relative w-full h-48 rounded-lg overflow-hidden border">
+                                                    <Image src={item.afterPhoto} alt={`after-${idx}`} fill className="object-cover" />
+                                                </div>
+                                            ) : (
+                                                <div className="w-full h-48 rounded-lg bg-gray-100 flex items-center justify-center text-gray-400">No photo</div>
+                                            )}
+                                        </div>
+                                    </div>
                                 </div>
-                                <input
-                                    type="file"
-                                    accept="image/*"
-                                    onChange={handlePhotoUpload}
-                                    className="hidden"
-                                    id="photo-upload"
-                                />
                             </div>
-                        ) : (
-                            /* Upload Placeholder */
-                            <div className="text-center">
-                                <div className="w-16 h-16 bg-primary rounded-lg flex items-center justify-center mx-auto mb-4">
-                                    <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                    </svg>
-                                </div>
-                                <input
-                                    type="file"
-                                    accept="image/*"
-                                    onChange={handlePhotoUpload}
-                                    className="hidden"
-                                    id="photo-upload"
-                                />
-                                <label
-                                    htmlFor="photo-upload"
-                                    className="inline-block bg-primary text-white px-6 py-2 rounded-lg cursor-pointer hover:bg-primary/90 transition-colors"
-                                >
-                                    Upload
-                                </label>
-                            </div>
+                        ))}
+                        {(!detail || (detail?.detailServis || []).length === 0) && (
+                            <div className="bg-white rounded-2xl p-6 shadow-sm text-center text-gray-500">Tidak ada detail servis</div>
                         )}
                     </div>
-                </div>
 
-                {/* Keterangan Photo */}
-                <div>
-                    <label className="block text-primary font-medium text-sm mb-2">
-                        Keterangan
-                    </label>
-                    <textarea
-                        rows={3}
-                        className="w-full p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent resize-none text-gray-600"
-                    />
-                </div>
-            </div>
-
-            {/* Photo Upload Section */}
-            <div className="bg-white rounded-2xl p-6 shadow-sm mx-6 mb-8">
-                <div className="mb-4">
-                    <label className="block text-primary font-medium text-sm mb-4">
-                        Photo Sesudah Perbaikan
-                    </label>
-
-                    {/* Upload Area */}
-                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-8">
-                        {imagePreview2 ? (
-                            /* Image Preview */
-                            <div className="space-y-4">
-                                <div className="relative w-full h-48 rounded-lg overflow-hidden">
-                                    <Image
-                                        src={imagePreview2}
-                                        alt="Preview"
-                                        fill
-                                        className="object-cover"
-                                    />
-                                </div>
-                                <div className="flex justify-center space-x-4">
-                                    <label
-                                        htmlFor="photo-upload-after"
-                                        className="bg-primary text-white px-4 py-2 rounded-lg cursor-pointer hover:bg-primary/90 transition-colors text-sm"
-                                    >
-                                        Change Photo
-                                    </label>
-                                    <button
-                                        type="button"
-                                        onClick={removePhotoAfter}
-                                        className="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition-colors text-sm"
-                                    >
-                                        Remove
-                                    </button>
-                                </div>
-                                <input
-                                    type="file"
-                                    accept="image/*"
-                                    onChange={handlePhotoUploadAfter}
-                                    className="hidden"
-                                    id="photo-upload-after"
-                                />
-                            </div>
-                        ) : (
-                            /* Upload Placeholder */
-                            <div className="text-center">
-                                <div className="w-16 h-16 bg-primary rounded-lg flex items-center justify-center mx-auto mb-4">
-                                    <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                    </svg>
-                                </div>
-                                <input
-                                    type="file"
-                                    accept="image/*"
-                                    onChange={handlePhotoUploadAfter}
-                                    className="hidden"
-                                    id="photo-upload-after"
-                                />
-                                <label
-                                    htmlFor="photo-upload-after"
-                                    className="inline-block bg-primary text-white px-6 py-2 rounded-lg cursor-pointer hover:bg-primary/90 transition-colors"
-                                >
-                                    Upload
-                                </label>
-                            </div>
-                        )}
+                    {/* Next Button */}
+                    <div className="px-6 pb-8">
+                        <Button type="primary" onClick={handleNextClick}>
+                            Next
+                        </Button>
                     </div>
-                </div>
-
-                {/* Keterangan Photo */}
-                <div>
-                    <label className="block text-primary font-medium text-sm mb-2">
-                        Keterangan
-                    </label>
-                    <textarea
-                        rows={3}
-                        className="w-full p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent resize-none text-gray-600"
-                    />
-                </div>
-            </div>
-            {/* Next Button */}
-            <div className="px-6 pb-8">
-                <Button type="primary" onClick={handleNextClick}>
-                    Next
-                </Button>
-            </div>
+                </>
+            )}
         </div>
     );
 };

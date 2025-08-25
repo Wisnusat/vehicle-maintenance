@@ -57,36 +57,69 @@ export default function HistoryList() {
 
     const fetchData = useCallback(async (opts?: { vehicleType?: string; startDate?: string; endDate?: string }) => {
         const supabase = createSupabaseBrowserClient();
-
-        let query = supabase
-            .from('checksheetProfile')
-            .select()
-            .ilike('fullName', dataUser.fullName)
-            .eq('nik', dataUser.nik);
+        const isMaintenance = method === 'maintenance';
 
         const vt = opts?.vehicleType ?? vehicleType;
         const sd = opts?.startDate ?? startDate;
         // const ed = opts?.endDate ?? endDate;
 
-        if (vt && vt !== 'all') {
-            query = query.eq('vehicleType', vt);
-        }
-        if (sd) {
-            query = query.eq('tanggal', sd);
-        }
-        // if (ed) {
-        //     query = query.lte('tanggal', ed);
-        // }
+        if (isMaintenance) {
+            // Fetch from maintenance table
+            let query = supabase
+                .from('maintenance')
+                .select('*')
+                .eq('nik', dataUser.nik);
 
-        const { data, error } = await query;
+            if (vt && vt !== 'all') {
+                query = query.eq('vehicleType', vt);
+            }
+            if (sd) {
+                query = query.eq('tanggal', sd);
+            }
 
-        if (error || !data) {
-            toast.error('Gagal mengambil data. Coba lagi.');
-            return;
+            const { data, error } = await query;
+            if (error || !data) {
+                toast.error('Gagal mengambil data. Coba lagi.');
+                return;
+            }
+
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const mapped: HistoryItem[] = data.map((row: any) => ({
+                id: String(row.id),
+                noUnit: row.noKendaraan || row.jenis_barang || '-',
+                waktuPengisian: row.waktu || '-',
+                tanggal: row.tanggal || '-',
+                vehicleType: row.jenis_barang ? 'lain-lain' : (vt !== 'all' ? vt : 'truck'),
+            }));
+            setHistoryItems(mapped);
+        } else {
+            // Legacy checksheet history
+            let query = supabase
+                .from('checksheetProfile')
+                .select()
+                .ilike('fullName', dataUser.fullName)
+                .eq('nik', dataUser.nik);
+
+            if (vt && vt !== 'all') {
+                query = query.eq('vehicleType', vt);
+            }
+            if (sd) {
+                query = query.eq('tanggal', sd);
+            }
+            // if (ed) {
+            //     query = query.lte('tanggal', ed);
+            // }
+
+            const { data, error } = await query;
+
+            if (error || !data) {
+                toast.error('Gagal mengambil data. Coba lagi.');
+                return;
+            }
+
+            setHistoryItems(data);
         }
-
-        setHistoryItems(data);
-    }, [dataUser.fullName, dataUser.nik, vehicleType, startDate]);
+    }, [dataUser.fullName, dataUser.nik, vehicleType, startDate, method]);
 
     useEffect(() => {
         fetchData();

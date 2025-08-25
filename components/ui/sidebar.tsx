@@ -11,7 +11,7 @@ const menuItemsChecksheet = [
     {
         name: "Dashboard",
         icon: "/icons/dashboard.svg",
-        href: "/maintenance"
+        href: "/checksheet"
     },
     {
         name: "History",
@@ -24,7 +24,7 @@ const menuItemsMaintenance = [
     {
         name: "Dashboard",
         icon: "/icons/dashboard.svg",
-        href: "/checksheet"
+        href: "/maintenance"
     },
     {
         name: "History",

@@ -1,34 +1,39 @@
 import Image from 'next/image';
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import Button from '@/components/ui/Button';
 import { Sidebar } from '@/components/ui/sidebar';
 import { useGlobalState } from '@/contexts/GlobalStateContext';
 import { useRouter } from 'next/navigation';
+import { createSupabaseBrowserClient } from '@/lib/supabase/client';
+import { toast } from 'sonner';
 
 type FormData = {
-    kilometer: string;
+    kilometer: string; // or tipeBarang when vehicleType === 'lain-lain'
+};
+
+type ServiceItem = {
     jenisServis: string;
     keterangan: string;
     photoSebelum: File | null;
-    keteranganPhoto: string;
     photoSesudah: File | null;
-    keteranganPhotoAfter: string;
+    previewSebelum: string | null;
+    previewSesudah: string | null;
 };
 
 export default function DetailServicePage() {
     const router = useRouter();
     const { vehicleType } = useGlobalState();
-    const [formData, setFormData] = useState<FormData>({
-        kilometer: '',
-        jenisServis: '',
-        keterangan: 'Isi Catatan disini',
-        photoSebelum: null,
-        photoSesudah: null,
-        keteranganPhoto: 'Isi Catatan disini',
-        keteranganPhotoAfter: 'Isi Catatan disini'
-    });
-    const [imagePreview, setImagePreview] = useState<string | null>(null);
-    const [imagePreview2, setImagePreview2] = useState<string | null>(null);
+    const [formData, setFormData] = useState<FormData>({ kilometer: '' });
+    const [services, setServices] = useState<ServiceItem[]>([
+        {
+            jenisServis: '',
+            keterangan: 'Isi Catatan disini',
+            photoSebelum: null,
+            photoSesudah: null,
+            previewSebelum: null,
+            previewSesudah: null,
+        },
+    ]);
 
     const handleInputChange = (field: keyof FormData, value: string) => {
         setFormData(prev => ({
@@ -37,62 +42,147 @@ export default function DetailServicePage() {
         }));
     };
 
-    const handlePhotoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const handleServiceChange = <K extends keyof ServiceItem>(index: number, field: K, value: ServiceItem[K]) => {
+        setServices(prev => {
+            const next = [...prev];
+            next[index] = { ...next[index], [field]: value } as ServiceItem;
+            return next;
+        });
+    };
+
+    const handlePhotoUpload = (index: number, event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (file) {
-            setFormData(prev => ({
-                ...prev,
-                photoSebelum: file
-            }));
-            
-            // Create image preview
+            handleServiceChange(index, 'photoSebelum', file);
             const reader = new FileReader();
             reader.onload = (e) => {
-                setImagePreview(e.target?.result as string);
+                handleServiceChange(index, 'previewSebelum', (e.target?.result as string) || null);
             };
             reader.readAsDataURL(file);
         }
     };
 
-    const removePhoto = () => {
-        setFormData(prev => ({
-            ...prev,
-            photoSebelum: null
-        }));
-        setImagePreview(null);
+    const removePhoto = (index: number) => {
+        handleServiceChange(index, 'photoSebelum', null);
+        handleServiceChange(index, 'previewSebelum', null);
     };
 
-    const handlePhotoUploadAfter = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const handlePhotoUploadAfter = (index: number, event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (file) {
-            setFormData(prev => ({
-                ...prev,
-                photoSesudah: file
-            }));
-            
-            // Create image preview
+            handleServiceChange(index, 'photoSesudah', file);
             const reader = new FileReader();
             reader.onload = (e) => {
-                setImagePreview2(e.target?.result as string);
+                handleServiceChange(index, 'previewSesudah', (e.target?.result as string) || null);
             };
             reader.readAsDataURL(file);
         }
     };
 
-    const removePhotoAfter = () => {
-        setFormData(prev => ({
-            ...prev,
-            photoSesudah: null
-        }));
-        setImagePreview2(null);
+    const removePhotoAfter = (index: number) => {
+        handleServiceChange(index, 'photoSesudah', null);
+        handleServiceChange(index, 'previewSesudah', null);
     };
 
     const addServiceType = () => {
-        // Handle adding new service type
-        console.log('Add service type');
+        setServices(prev => ([
+            ...prev,
+            {
+                jenisServis: '',
+                keterangan: 'Isi Catatan disini',
+                photoSebelum: null,
+                photoSesudah: null,
+                previewSebelum: null,
+                previewSesudah: null,
+            }
+        ]));
     };
 
-    const handleNextClick = () => {
+    const supabase = useMemo(() => createSupabaseBrowserClient(), []);
+
+    const handleNextClick = async () => {
+        // Validation
+        if (!formData.kilometer && vehicleType !== 'lain-lain') {
+            toast.error('Kilometer wajib diisi');
+            return;
+        }
+        if (vehicleType === 'lain-lain' && !formData.kilometer) {
+            toast.error('Tipe Barang wajib diisi');
+            return;
+        }
+        if (services.length === 0) {
+            toast.error('Tambahkan minimal 1 detail servis');
+            return;
+        }
+        for (let i = 0; i < services.length; i++) {
+            if (!services[i].jenisServis) {
+                toast.error(`Jenis Servis #${i + 1} wajib diisi`);
+                return;
+            }
+        }
+
+        // Get maintenance id
+        let maintenanceId: string | number | null = null;
+        try {
+            maintenanceId = sessionStorage.getItem('maintenance_current_id');
+        } catch { }
+        if (!maintenanceId) {
+            toast.error('Maintenance ID tidak ditemukan. Mohon kembali dan submit form utama terlebih dahulu.');
+            return;
+        }
+
+        // Upload photos and build detailServis array
+        const bucket = 'maintenance_photo';
+        const uploads: { beforeUrl: string; afterUrl: string; jenisServis: string; keterangan: string }[] = [];
+        for (let i = 0; i < services.length; i++) {
+            const svc = services[i];
+            let beforeUrl = '';
+            let afterUrl = '';
+
+            if (svc.photoSebelum) {
+                const ext = svc.photoSebelum.name.split('.').pop() || 'jpg';
+                const path = `${maintenanceId}/${Date.now()}_${i}_before.${ext}`;
+                const { error: upErr } = await supabase.storage.from(bucket).upload(path, svc.photoSebelum, { contentType: svc.photoSebelum.type });
+                if (upErr) { toast.error(`Upload foto sebelum gagal (#${i + 1}): ${upErr.message}`); return; }
+                beforeUrl = supabase.storage.from(bucket).getPublicUrl(path).data.publicUrl;
+            }
+
+            if (svc.photoSesudah) {
+                const ext = svc.photoSesudah.name.split('.').pop() || 'jpg';
+                const path = `${maintenanceId}/${Date.now()}_${i}_after.${ext}`;
+                const { error: upErr } = await supabase.storage.from(bucket).upload(path, svc.photoSesudah, { contentType: svc.photoSesudah.type });
+                if (upErr) { toast.error(`Upload foto sesudah gagal (#${i + 1}): ${upErr.message}`); return; }
+                afterUrl = supabase.storage.from(bucket).getPublicUrl(path).data.publicUrl;
+            }
+
+            uploads.push({
+                beforeUrl,
+                afterUrl,
+                jenisServis: svc.jenisServis,
+                keterangan: svc.keterangan,
+            });
+        }
+
+        const detailServis = uploads.map(u => ({
+            jenisServis: u.jenisServis,
+            keterangan: u.keterangan,
+            beforePhoto: u.beforeUrl,
+            afterPhoto: u.afterUrl,
+        }));
+
+        const payload = {
+            tipeBarang: vehicleType === 'lain-lain' ? formData.kilometer : '',
+            kilometer: vehicleType !== 'lain-lain' ? formData.kilometer : '',
+            detailServis,
+            maintenance_id: maintenanceId,
+        } as const;
+
+        const { error } = await supabase.from('maintenance_detail').insert([payload]);
+        if (error) {
+            toast.error(`Gagal menyimpan detail: ${error.message}`);
+            return;
+        }
+
         router.push('/maintenance/confirm');
     };
 
@@ -178,227 +268,202 @@ export default function DetailServicePage() {
                     </div>
                 </div>
 
-                {/* Jenis Servis Section */}
-                <div className="bg-white rounded-2xl p-6 shadow-sm">
-                    <div className="mb-4">
-                        <label className="block text-primary font-medium text-sm mb-4">
-                            Jenis Servis
-                        </label>
-                        
-                        {/* Service Type Input with Add Button */}
-                        <div className="flex items-center space-x-3">
-                            <div className="w-8 h-8 flex items-center justify-center flex-shrink-0">
-                                <Image
-                                    src="/icons/part.svg"
-                                    alt="Service"
-                                    width={32}
-                                    height={32}
-                                    className="object-contain"
-                                />
+                <div className="flex items-center justify-end mb-4 gap-2">
+                    <label className="block text-primary font-medium text-sm">
+                        Add New Servis
+                    </label>
+                    <button
+                        onClick={addServiceType}
+                        className="w-8 h-8 bg-primary rounded-full flex items-center justify-center flex-shrink-0"
+                        type="button"
+                    >
+                        <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                        </svg>
+                    </button>
+                </div>
+                {/* Detail Servis List */}
+                {services.map((svc, index) => (
+                    <div className="bg-white rounded-2xl p-6 shadow-sm" key={index}>
+                        <div className="flex items-center justify-between mb-4">
+                            <label className="block text-primary font-medium text-sm">
+                                Detail Servis
+                            </label>
+                        </div>
+
+                        <div className="space-y-8">
+                            <div className="space-y-4 border border-gray-100 rounded-xl p-4">
+                                {/* Jenis Servis */}
+                                <div className="flex items-center space-x-3">
+                                    <div className="w-8 h-8 flex items-center justify-center flex-shrink-0">
+                                        <Image
+                                            src="/icons/part.svg"
+                                            alt="Service"
+                                            width={32}
+                                            height={32}
+                                            className="object-contain"
+                                        />
+                                    </div>
+                                    <input
+                                        type="text"
+                                        value={svc.jenisServis}
+                                        onChange={(e) => handleServiceChange(index, 'jenisServis', e.target.value)}
+                                        placeholder="Jenis Part - Servis"
+                                        className="flex-1 p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                                    />
+                                </div>
+
+                                {/* Keterangan */}
+                                <div>
+                                    <label className="block text-primary font-medium text-sm mb-2">
+                                        Keterangan
+                                    </label>
+                                    <textarea
+                                        value={svc.keterangan}
+                                        onChange={(e) => handleServiceChange(index, 'keterangan', e.target.value)}
+                                        rows={3}
+                                        className="w-full p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent resize-none text-gray-600"
+                                    />
+                                </div>
+
+                                {/* Photo Sebelum */}
+                                <div>
+                                    <label className="block text-primary font-medium text-sm mb-4">
+                                        Photo Sebelum Perbaikan
+                                    </label>
+                                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-8">
+                                        {svc.previewSebelum ? (
+                                            <div className="space-y-4">
+                                                <div className="relative w-full h-48 rounded-lg overflow-hidden">
+                                                    <Image
+                                                        src={svc.previewSebelum}
+                                                        alt="Preview"
+                                                        fill
+                                                        className="object-cover"
+                                                    />
+                                                </div>
+                                                <div className="flex justify-center space-x-4">
+                                                    <label
+                                                        htmlFor={`photo-upload-${index}`}
+                                                        className="bg-primary text-white px-4 py-2 rounded-lg cursor-pointer hover:bg-primary/90 transition-colors text-sm"
+                                                    >
+                                                        Edit
+                                                    </label>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => removePhoto(index)}
+                                                        className="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition-colors text-sm"
+                                                    >
+                                                        Remove
+                                                    </button>
+                                                </div>
+                                                <input
+                                                    type="file"
+                                                    accept="image/*"
+                                                    onChange={(e) => handlePhotoUpload(index, e)}
+                                                    className="hidden"
+                                                    id={`photo-upload-${index}`}
+                                                />
+                                            </div>
+                                        ) : (
+                                            <div className="text-center">
+                                                <div className="w-16 h-16 bg-primary rounded-lg flex items-center justify-center mx-auto mb-4">
+                                                    <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                                    </svg>
+                                                </div>
+                                                <input
+                                                    type="file"
+                                                    accept="image/*"
+                                                    onChange={(e) => handlePhotoUpload(index, e)}
+                                                    className="hidden"
+                                                    id={`photo-upload-${index}`}
+                                                />
+                                                <label
+                                                    htmlFor={`photo-upload-${index}`}
+                                                    className="inline-block bg-primary text-white px-6 py-2 rounded-lg cursor-pointer hover:bg-primary/90 transition-colors"
+                                                >
+                                                    Upload
+                                                </label>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Photo Sesudah */}
+                                <div>
+                                    <label className="block text-primary font-medium text-sm mb-4">
+                                        Photo Sesudah Perbaikan
+                                    </label>
+                                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-8">
+                                        {svc.previewSesudah ? (
+                                            <div className="space-y-4">
+                                                <div className="relative w-full h-48 rounded-lg overflow-hidden">
+                                                    <Image
+                                                        src={svc.previewSesudah}
+                                                        alt="Preview"
+                                                        fill
+                                                        className="object-cover"
+                                                    />
+                                                </div>
+                                                <div className="flex justify-center space-x-4">
+                                                    <label
+                                                        htmlFor={`photo-upload-after-${index}`}
+                                                        className="bg-primary text-white px-4 py-2 rounded-lg cursor-pointer hover:bg-primary/90 transition-colors text-sm"
+                                                    >
+                                                        Edit
+                                                    </label>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => removePhotoAfter(index)}
+                                                        className="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition-colors text-sm"
+                                                    >
+                                                        Remove
+                                                    </button>
+                                                </div>
+                                                <input
+                                                    type="file"
+                                                    accept="image/*"
+                                                    onChange={(e) => handlePhotoUploadAfter(index, e)}
+                                                    className="hidden"
+                                                    id={`photo-upload-after-${index}`}
+                                                />
+                                            </div>
+                                        ) : (
+                                            <div className="text-center">
+                                                <div className="w-16 h-16 bg-primary rounded-lg flex items-center justify-center mx-auto mb-4">
+                                                    <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                                    </svg>
+                                                </div>
+                                                <input
+                                                    type="file"
+                                                    accept="image/*"
+                                                    onChange={(e) => handlePhotoUploadAfter(index, e)}
+                                                    className="hidden"
+                                                    id={`photo-upload-after-${index}`}
+                                                />
+                                                <label
+                                                    htmlFor={`photo-upload-after-${index}`}
+                                                    className="inline-block bg-primary text-white px-6 py-2 rounded-lg cursor-pointer hover:bg-primary/90 transition-colors"
+                                                >
+                                                    Upload
+                                                </label>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
                             </div>
-                            <input
-                                type="text"
-                                value={formData.jenisServis}
-                                onChange={(e) => handleInputChange('jenisServis', e.target.value)}
-                                placeholder="Jenis Part - Servis"
-                                className="flex-1 p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                            />
-                            <button
-                                onClick={addServiceType}
-                                className="w-8 h-8 bg-primary rounded-full flex items-center justify-center flex-shrink-0"
-                            >
-                                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                                </svg>
-                            </button>
                         </div>
                     </div>
+                ))}
 
-                    {/* Keterangan */}
-                    <div>
-                        <label className="block text-primary font-medium text-sm mb-2">
-                            Keterangan
-                        </label>
-                        <textarea
-                            value={formData.keterangan}
-                            onChange={(e) => handleInputChange('keterangan', e.target.value)}
-                            rows={3}
-                            className="w-full p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent resize-none text-gray-600"
-                        />
-                    </div>
+                {/* Next Button */}
+                <div className="px-6 py-8">
+                    <Button type="primary" onClick={handleNextClick}>
+                        Next
+                    </Button>
                 </div>
-
-                {/* Photo Upload Section */}
-                <div className="bg-white rounded-2xl p-6 shadow-sm">
-                    <div className="mb-4">
-                        <label className="block text-primary font-medium text-sm mb-4">
-                            Photo Sebelum Perbaikan
-                        </label>
-                        
-                        {/* Upload Area */}
-                        <div className="border-2 border-dashed border-gray-300 rounded-lg p-8">
-                            {imagePreview ? (
-                                /* Image Preview */
-                                <div className="space-y-4">
-                                    <div className="relative w-full h-48 rounded-lg overflow-hidden">
-                                        <Image
-                                            src={imagePreview}
-                                            alt="Preview"
-                                            fill
-                                            className="object-cover"
-                                        />
-                                    </div>
-                                    <div className="flex justify-center space-x-4">
-                                        <label
-                                            htmlFor="photo-upload"
-                                            className="bg-primary text-white px-4 py-2 rounded-lg cursor-pointer hover:bg-primary/90 transition-colors text-sm"
-                                        >
-                                            Change Photo
-                                        </label>
-                                        <button
-                                            type="button"
-                                            onClick={removePhoto}
-                                            className="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition-colors text-sm"
-                                        >
-                                            Remove
-                                        </button>
-                                    </div>
-                                    <input
-                                        type="file"
-                                        accept="image/*"
-                                        onChange={handlePhotoUpload}
-                                        className="hidden"
-                                        id="photo-upload"
-                                    />
-                                </div>
-                            ) : (
-                                /* Upload Placeholder */
-                                <div className="text-center">
-                                    <div className="w-16 h-16 bg-primary rounded-lg flex items-center justify-center mx-auto mb-4">
-                                        <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                        </svg>
-                                    </div>
-                                    <input
-                                        type="file"
-                                        accept="image/*"
-                                        onChange={handlePhotoUpload}
-                                        className="hidden"
-                                        id="photo-upload"
-                                    />
-                                    <label
-                                        htmlFor="photo-upload"
-                                        className="inline-block bg-primary text-white px-6 py-2 rounded-lg cursor-pointer hover:bg-primary/90 transition-colors"
-                                    >
-                                        Upload
-                                    </label>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* Keterangan Photo */}
-                    <div>
-                        <label className="block text-primary font-medium text-sm mb-2">
-                            Keterangan
-                        </label>
-                        <textarea
-                            value={formData.keteranganPhoto}
-                            onChange={(e) => handleInputChange('keteranganPhoto', e.target.value)}
-                            rows={3}
-                            className="w-full p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent resize-none text-gray-600"
-                        />
-                    </div>
-                </div>
-
-                <div className="bg-white rounded-2xl p-6 shadow-sm">
-                    <div className="mb-4">
-                        <label className="block text-primary font-medium text-sm mb-4">
-                            Photo Sesudah Perbaikan
-                        </label>
-                        
-                        {/* Upload Area */}
-                        <div className="border-2 border-dashed border-gray-300 rounded-lg p-8">
-                            {imagePreview2 ? (
-                                /* Image Preview */
-                                <div className="space-y-4">
-                                    <div className="relative w-full h-48 rounded-lg overflow-hidden">
-                                        <Image
-                                            src={imagePreview2}
-                                            alt="Preview"
-                                            fill
-                                            className="object-cover"
-                                        />
-                                    </div>
-                                    <div className="flex justify-center space-x-4">
-                                        <label
-                                            htmlFor="photo-upload-after"
-                                            className="bg-primary text-white px-4 py-2 rounded-lg cursor-pointer hover:bg-primary/90 transition-colors text-sm"
-                                        >
-                                            Change Photo
-                                        </label>
-                                        <button
-                                            type="button"
-                                            onClick={removePhotoAfter}
-                                            className="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition-colors text-sm"
-                                        >
-                                            Remove
-                                        </button>
-                                    </div>
-                                    <input
-                                        type="file"
-                                        accept="image/*"
-                                        onChange={handlePhotoUploadAfter}
-                                        className="hidden"
-                                        id="photo-upload-after"
-                                    />
-                                </div>
-                            ) : (
-                                /* Upload Placeholder */
-                                <div className="text-center">
-                                    <div className="w-16 h-16 bg-primary rounded-lg flex items-center justify-center mx-auto mb-4">
-                                        <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                        </svg>
-                                    </div>
-                                    <input
-                                        type="file"
-                                        accept="image/*"
-                                        onChange={handlePhotoUploadAfter}
-                                        className="hidden"
-                                        id="photo-upload-after"
-                                    />
-                                    <label
-                                        htmlFor="photo-upload-after"
-                                        className="inline-block bg-primary text-white px-6 py-2 rounded-lg cursor-pointer hover:bg-primary/90 transition-colors"
-                                    >
-                                        Upload
-                                    </label>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* Keterangan Photo */}
-                    <div>
-                        <label className="block text-primary font-medium text-sm mb-2">
-                            Keterangan
-                        </label>
-                        <textarea
-                            value={formData.keteranganPhotoAfter}
-                            onChange={(e) => handleInputChange('keteranganPhotoAfter', e.target.value)}
-                            rows={3}
-                            className="w-full p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent resize-none text-gray-600"
-                        />
-                    </div>
-                </div>
-            </div>
-
-            {/* Next Button */}
-            <div className="px-6 py-8">
-                <Button type="primary" onClick={handleNextClick}>
-                    Next
-                </Button>
             </div>
         </div>
     );

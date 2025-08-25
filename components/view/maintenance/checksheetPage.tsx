@@ -1,9 +1,12 @@
 import Image from 'next/image';
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import Button from '@/components/ui/Button';
 import { Sidebar } from '@/components/ui/sidebar';
 import { useRouter } from 'next/navigation';
 import { useGlobalState } from '@/contexts/GlobalStateContext';
+import { listForklift, listTowing, noPolisiList } from '@/data/dropdown';
+import { createSupabaseBrowserClient } from '@/lib/supabase/client';
+import { toast } from 'sonner';
 
 type VehicleData = {
     name: string;
@@ -17,20 +20,24 @@ type FormData = {
     noUnitPolisi: string;
     tanggal: string;
     waktuPengisian: string;
+    jenisBarang?: string;
 };
 
 export default function ChecksheetPage() {
+    const nik = JSON.parse(localStorage.getItem('user') || '{}')?.nik;
+    const fullName = JSON.parse(localStorage.getItem('user') || '{}')?.fullName;
     const router = useRouter();
-    const { changeVehicleType } = useGlobalState();
+    const { changeVehicleType, vehicleType } = useGlobalState();
     const [currentSlide, setCurrentSlide] = useState(0);
     const [touchStart, setTouchStart] = useState<number | null>(null);
     const [touchEnd, setTouchEnd] = useState<number | null>(null);
     const [formData, setFormData] = useState<FormData>({
-        nama: '',
-        nik: '',
+        nama: fullName || '',
+        nik: nik || '',
         noUnitPolisi: '',
         tanggal: '',
-        waktuPengisian: ''
+        waktuPengisian: '',
+        jenisBarang: ''
     });
 
     // Vehicle data
@@ -108,8 +115,60 @@ export default function ChecksheetPage() {
         }));
     };
 
-    const handleNextClick = () => {
-        router.push('/maintenance/detail');
+    const unitOptions = useMemo(() => {
+        if (vehicleType === 'forklift') return listForklift;
+        if (vehicleType === 'towing') return listTowing;
+        if (vehicleType === 'truck') return noPolisiList;
+        return [];
+    }, [vehicleType]);
+
+    const handleNextClick = async () => {
+        // Basic required validation
+        if (!formData.nama || !formData.nik || !formData.tanggal || !formData.waktuPengisian) {
+            toast.error('Nama, NIK, Tanggal, dan Waktu wajib diisi');
+            return;
+        }
+        if (vehicleType === 'lain-lain') {
+            if (!formData.jenisBarang) {
+                toast.error('Jenis Barang wajib diisi untuk tipe Lain Lain');
+                return;
+            }
+        } else {
+            if (!formData.noUnitPolisi) {
+                toast.error('No Unit/Polisi wajib dipilih');
+                return;
+            }
+        }
+
+        const supabase = createSupabaseBrowserClient();
+        const payload = {
+            nama: formData.nama,
+            nik: formData.nik,
+            noKendaraan: vehicleType === 'lain-lain' ? '' : formData.noUnitPolisi,
+            jenis_barang: vehicleType === 'lain-lain' ? (formData.jenisBarang || '') : '',
+            tanggal: formData.tanggal,
+            waktu: formData.waktuPengisian,
+            vehicleType: vehicleType,
+        };
+
+        const { data, error } = await supabase
+            .from('maintenance')
+            .insert([payload])
+            .select('id')
+            .single();
+        if (error) {
+            toast.error(`Gagal menyimpan data: ${error.message}`);
+            return;
+        }
+
+        const maintenanceId = data?.id as string | number | undefined;
+        if (maintenanceId) {
+            try {
+                sessionStorage.setItem('maintenance_current_id', String(maintenanceId));
+            } catch {}
+        }
+
+        router.push(`/maintenance/detail`);
     };
 
     return (
@@ -278,14 +337,32 @@ export default function ChecksheetPage() {
                             />
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">No Unit/Polisi</label>
-                            <input
-                                type="text"
-                                value={formData.noUnitPolisi}
-                                onChange={(e) => handleFormChange('noUnitPolisi', e.target.value)}
-                                placeholder='No Unit/Polisi'
-                                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                            />
+                            {vehicleType === 'lain-lain' ? (
+                                <>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Jenis Barang</label>
+                                    <input
+                                        type="text"
+                                        value={formData.jenisBarang}
+                                        onChange={(e) => handleFormChange('jenisBarang', e.target.value)}
+                                        placeholder='Jenis Barang'
+                                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                                    />
+                                </>
+                            ) : (
+                                <>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">No Unit/Polisi</label>
+                                    <select
+                                        value={formData.noUnitPolisi}
+                                        onChange={(e) => handleFormChange('noUnitPolisi', e.target.value)}
+                                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent bg-white"
+                                    >
+                                        <option value="">Pilih</option>
+                                        {unitOptions.map((opt) => (
+                                            <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                        ))}
+                                    </select>
+                                </>
+                            )}
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">Tanggal</label>
