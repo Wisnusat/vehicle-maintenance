@@ -218,7 +218,7 @@ export default function VehicleServices({ vehicleType = 'forklift' }: VehicleSer
             partName: part.name,
             pengecekan: part.kondisi.map((k) => ({
                 text: k.text,
-                kondisi: 'Problem',
+                kondisi: '',
             })),
             note: '',
         }));
@@ -391,7 +391,7 @@ export default function VehicleServices({ vehicleType = 'forklift' }: VehicleSer
                                             <div onClick={() => selectCondition(i, 'Baik')} className={`w-full px-4 rounded-md text-primary border border-solid border-green-500 font-medium ${formData[selectedPartIndex]?.pengecekan[i].kondisi === 'Baik' ? 'bg-green-500' : 'bg-white'} ${isSaved && 'opacity-70'}`}>
                                                 OK
                                             </div>
-                                            <div onClick={() => selectCondition(i, 'Not Good')} className={`w-full px-4 rounded-md text-primary border border-solid border-red-500 font-medium ${formData[selectedPartIndex]?.pengecekan[i].kondisi === 'Not Good' ? 'bg-red-500' : 'bg-white'} ${isSaved && 'opacity-70'}`}>
+                                            <div onClick={() => selectCondition(i, 'Problem')} className={`w-full px-4 rounded-md text-primary border border-solid border-red-500 font-medium ${formData[selectedPartIndex]?.pengecekan[i].kondisi === 'Problem' ? 'bg-red-500' : 'bg-white'} ${isSaved && 'opacity-70'}`}>
                                                 NG
                                             </div>
                                         </div>

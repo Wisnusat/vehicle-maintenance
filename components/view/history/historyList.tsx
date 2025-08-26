@@ -15,6 +15,8 @@ type HistoryItem = {
     waktuPengisian: string;
     tanggal: string;
     vehicleType: string;
+    noPolisi: string;
+    noKendaraan: string;
 };
 
 // Date input that opens picker when any area is clicked
@@ -47,7 +49,6 @@ function DateClickableInput({ id, value, onChange }: { id: string; value: string
 }
 
 export default function HistoryList() {
-    const dataUser = JSON.parse(localStorage.getItem('user') || '{}');
     const router = useRouter();
     const { method } = useGlobalState();
     const [historyItems, setHistoryItems] = useState<HistoryItem[]>([]);
@@ -67,8 +68,7 @@ export default function HistoryList() {
             // Fetch from maintenance table
             let query = supabase
                 .from('maintenance')
-                .select('*')
-                .eq('nik', dataUser.nik);
+                .select('*');
 
             if (vt && vt !== 'all') {
                 query = query.eq('vehicleType', vt);
@@ -90,15 +90,15 @@ export default function HistoryList() {
                 waktuPengisian: row.waktu || '-',
                 tanggal: row.tanggal || '-',
                 vehicleType: row.jenis_barang ? 'lain-lain' : (vt !== 'all' ? vt : 'truck'),
+                noPolisi: row.noPolisi || '-',
+                noKendaraan: row.noKendaraan || '-',
             }));
             setHistoryItems(mapped);
         } else {
             // Legacy checksheet history
             let query = supabase
                 .from('checksheetProfile')
-                .select()
-                .ilike('fullName', dataUser.fullName)
-                .eq('nik', dataUser.nik);
+                .select('*');
 
             if (vt && vt !== 'all') {
                 query = query.eq('vehicleType', vt);
@@ -119,7 +119,7 @@ export default function HistoryList() {
 
             setHistoryItems(data);
         }
-    }, [dataUser.fullName, dataUser.nik, vehicleType, startDate, method]);
+    }, [vehicleType, startDate, method]);
 
     useEffect(() => {
         fetchData();
@@ -281,7 +281,7 @@ export default function HistoryList() {
                                     {/* Content */}
                                     <div className="flex-1">
                                         <h3 className="text-xl font-bold text-primary mb-1">
-                                            {item.noUnit}
+                                            {item.noUnit || item.noKendaraan || item.noPolisi || '-'}
                                         </h3>
                                         <div className="text-sm text-gray-600">
                                             <p>Check Time:</p>

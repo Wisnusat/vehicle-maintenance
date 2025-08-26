@@ -18,6 +18,11 @@ type VehicleDetail = {
     waktuPengisian: string;
     noUnit: string;
     vehicleType?: string;
+    ruteDelivery?: string;
+    sioDepnaker: string;
+    stnk: string;
+    stickerKir: string;
+    ibm: string;
 };
 
 type Pengecekan = {
@@ -29,6 +34,7 @@ type ChecksheetPartRow = {
     id: string;
     partName: string;
     pengecekan: Pengecekan[];
+    note: string;
 };
 
 export default function HistoryDetail({ id }: { id?: string }) {
@@ -132,6 +138,11 @@ export default function HistoryDetail({ id }: { id?: string }) {
                     waktuPengisian: profile.waktuPengisian ?? '-',
                     noUnit: (profile.noUnit || profile.noPolisi || '-') as string,
                     vehicleType: profile.vehicleType ?? undefined,
+                    ruteDelivery: profile.ruteDelivery ?? '',
+                    sioDepnaker: profile.sioDepnaker ?? '',
+                    stnk: profile.stnk ?? '',
+                    stickerKir: profile.stickerKir ?? '',
+                    ibm: profile.ibm ?? '',
                 };
                 setVehicleDetail(mappedVehicle);
                 setProfileRaw(profile);
@@ -148,6 +159,7 @@ export default function HistoryDetail({ id }: { id?: string }) {
                         id: p.id,
                         partName: p.partName,
                         pengecekan: normalizePengecekan(p.pengecekan),
+                        note: p.note,
                     }));
                     setPartsDetails(parsed);
                 }
@@ -235,9 +247,9 @@ export default function HistoryDetail({ id }: { id?: string }) {
                     <p className="text-gray-500 text-sm">Type Unit</p>
                     <p className="text-primary font-semibold text-lg">{vehicleType || '-'}</p>
                     {/* Optional: show id for debugging */}
-                    {id && (
+                    {/* {id && (
                         <p className="text-xs text-gray-500 mt-1">ID: {id}</p>
-                    )}
+                    )} */}
                 </div>
             </div>
 
@@ -257,8 +269,8 @@ export default function HistoryDetail({ id }: { id?: string }) {
                             <p className="text-primary font-medium">{vehicleDetail?.name || '-'}</p>
                         </div>
                         <div>
-                            <p className="text-gray-500 mb-1">Line</p>
-                            <p className="text-primary font-medium">{vehicleDetail?.line || '-'}</p>
+                            <p className="text-gray-500 mb-1">{vehicleType !== 'truck' ? 'Line' : 'Rute Delivery'}</p>
+                            <p className="text-primary font-medium">{vehicleDetail?.line || vehicleDetail?.ruteDelivery || '-'}</p>
                         </div>
                         <div>
                             <p className="text-gray-500 mb-1">NIK</p>
@@ -276,9 +288,25 @@ export default function HistoryDetail({ id }: { id?: string }) {
                             <p className="text-gray-500 mb-1">Waktu Pengisian</p>
                             <p className="text-primary font-medium">{vehicleDetail?.waktuPengisian || '-'}</p>
                         </div>
-                        <div className="col-span-2">
-                            <p className="text-gray-500 mb-1">No Unit</p>
+                        <div className={`${vehicleType !== 'truck' && 'col-span-2'}`}>
+                            <p className="text-gray-500 mb-1">No {vehicleType === 'truck' ? 'Polisi' : 'Unit'}</p>
                             <p className="text-primary font-medium">{vehicleDetail?.noUnit || '-'}</p>
+                        </div>
+                        <div>
+                            <p className="text-gray-500 mb-1">SIO Depnaker</p>
+                            <p className="text-primary font-medium">{vehicleDetail?.sioDepnaker || '-'}</p>
+                        </div>
+                        <div>
+                            <p className="text-gray-500 mb-1">STNK</p>
+                            <p className="text-primary font-medium">{vehicleDetail?.stnk || '-'}</p>
+                        </div>
+                        <div>
+                            <p className="text-gray-500 mb-1">Sticker KIR</p>
+                            <p className="text-primary font-medium">{vehicleDetail?.stickerKir || '-'}</p>
+                        </div>
+                        <div>
+                            <p className="text-gray-500 mb-1">Surat Izin Bongkar Muat</p>
+                            <p className="text-primary font-medium">{vehicleDetail?.ibm || '-'}</p>
                         </div>
                     </div>
                 </div>
@@ -290,11 +318,6 @@ export default function HistoryDetail({ id }: { id?: string }) {
                     <div key={part.id} className="bg-white rounded-2xl p-4 shadow-sm border border-gray-200">
                         <div className="flex justify-between items-center mb-4">
                             <h3 className="text-primary font-semibold text-lg">Detail Parts</h3>
-                            <button className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center">
-                                <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                                </svg>
-                            </button>
                         </div>
 
                         <div className="space-y-3 text-sm">
@@ -305,10 +328,14 @@ export default function HistoryDetail({ id }: { id?: string }) {
                             <div>
                                 <p className="text-gray-500 mb-1">Pengecekan</p>
                                 <div className="text-primary font-medium leading-relaxed flex-col gap-2">{part?.pengecekan?.map((pengecekan, i) => <div key={i}>{pengecekan.text} (<span className={`font-medium ${pengecekan.kondisi === 'Baik' ? 'text-green-600' :
-                                        pengecekan.kondisi === 'Problem' ? 'text-red-600' : 'text-primary'
+                                        pengecekan.kondisi === 'Problem' ? 'text-red-600' : 'text-orange-500'
                                     }`}>
-                                    {pengecekan.kondisi}
+                                    {pengecekan.kondisi || 'Belum Diisi'}
                                 </span>)</div>)}</div>
+                            </div>
+                            <div>
+                                <p className="text-gray-500 mb-1">Note</p>
+                                <p className="text-primary font-medium">{part.note || '-'}</p>
                             </div>
                         </div>
                     </div>

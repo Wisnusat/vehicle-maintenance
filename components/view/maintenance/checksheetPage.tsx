@@ -24,16 +24,14 @@ type FormData = {
 };
 
 export default function ChecksheetPage() {
-    const nik = JSON.parse(localStorage.getItem('user') || '{}')?.nik;
-    const fullName = JSON.parse(localStorage.getItem('user') || '{}')?.fullName;
     const router = useRouter();
     const { changeVehicleType, vehicleType } = useGlobalState();
     const [currentSlide, setCurrentSlide] = useState(0);
     const [touchStart, setTouchStart] = useState<number | null>(null);
     const [touchEnd, setTouchEnd] = useState<number | null>(null);
     const [formData, setFormData] = useState<FormData>({
-        nama: fullName || '',
-        nik: nik || '',
+        nama: '',
+        nik: '',
         noUnitPolisi: '',
         tanggal: '',
         waktuPengisian: '',

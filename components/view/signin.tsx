@@ -85,7 +85,7 @@ export default function SigninPage({ onContinue, isLoading }: SigninPageProps) {
           <div className="relative">
             <Input 
               type={showNik ? "text" : "password"} 
-              placeholder="NIK" 
+              placeholder="Password" 
               className={`text-black bg-white p-6 pr-12 ${errors.nik ? 'border-red-500' : ''}`}
               value={nik} 
               onChange={(e) => {

@@ -15,8 +15,8 @@ export default function WelcomePage({ onContinue }: WelcomePageProps) {
       </div>
 
       {/* Title */}
-      <h1 className="text-4xl font-extrabold text-white mb-16 text-left">
-        Pengecekan<br /><span className='ml-12'>Kendaraan</span>
+      <h1 className="text-4xl font-extrabold text-white mb-16 text-center">
+        Pengecekan<br />Kendaraan
       </h1>
 
       {/* Image Placeholder */}

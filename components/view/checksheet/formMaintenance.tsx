@@ -9,8 +9,6 @@ import { lines, listForklift, listSim, listTowing, noPolisiList, ruteDeliveryLis
 
 type FormMaintenanceProps = {
     vehicleType: string;
-    nik: string;
-    fullName: string;
 };
 
 type FormData = {
@@ -38,15 +36,15 @@ type FormData = {
 
 type FormErrors = Partial<Record<keyof FormData, string>>;
 
-export default function FormMaintenance({ vehicleType, nik, fullName }: FormMaintenanceProps) {
+export default function FormMaintenance({ vehicleType }: FormMaintenanceProps) {
     const router = useRouter();
     const isTruck = vehicleType?.toLowerCase() === 'truck';
     const listNoUnit = vehicleType?.toLowerCase() === 'forklift' ? listForklift : listTowing;
     const listZona = vehicleType?.toLowerCase() === 'forklift' ? zonaForklift : zonaTowing;
 
     const [formData, setFormData] = useState<FormData>({
-        nik: nik,
-        fullName: fullName,
+        nik: '',
+        fullName: '',
         shift: '',
 
         // Non-truck
@@ -157,7 +155,7 @@ export default function FormMaintenance({ vehicleType, nik, fullName }: FormMain
             const payload = {
                 ...formData,
                 vehicleType,
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
             } as any;
 
             const editMode = localStorage.getItem('editMode') === 'true';
@@ -435,7 +433,7 @@ export default function FormMaintenance({ vehicleType, nik, fullName }: FormMain
                 {/* Extra Truck Docs (optional) */}
                 {isTruck && (
                     <>
-                        <div>
+                        <div className="flex flex-col">
                             <label>SIM</label>
                             <select
                                 id="sim"
@@ -459,64 +457,56 @@ export default function FormMaintenance({ vehicleType, nik, fullName }: FormMain
                         </div>
                         <div>
                             <label>SIO Depnaker</label>
-                            <Input
-                                id="sio_depnaker"
-                                type="text"
-                                placeholder="SIO Depnaker"
-                                value={formData.sioDepnaker}
-                                onChange={(e) => handleInputChange('sioDepnaker', e.target.value)}
-                                disabled={isSaved}
-                                className={`bg-white shadow-md ${errors.sioDepnaker ? 'border-red-500' : ''}`}
-                                aria-invalid={!!errors.sioDepnaker}
-                            />
+                            <div className="flex gap-2 items-center">
+                                <div onClick={() => handleInputChange('sioDepnaker', 'Baik')} className={`w-full text-center py-1 px-4 rounded-md text-primary border border-solid border-green-500 font-medium ${formData.sioDepnaker === 'Baik' ? 'bg-green-500' : 'bg-white'} ${isSaved && 'opacity-70'}`}>
+                                    OK
+                                </div>
+                                <div onClick={() => handleInputChange('sioDepnaker', 'Problem')} className={`w-full text-center py-1 px-4 rounded-md text-primary border border-solid border-red-500 font-medium ${formData.sioDepnaker === 'Problem' ? 'bg-red-500' : 'bg-white'} ${isSaved && 'opacity-70'}`}>
+                                    NG
+                                </div>
+                            </div>
                             {errors.sioDepnaker && (
                                 <p className="text-red-500 text-sm mt-1">{errors.sioDepnaker}</p>
                             )}
                         </div>
                         <div>
                             <label>STNK</label>
-                            <Input
-                                id="stnk"
-                                type="text"
-                                placeholder="STNK"
-                                value={formData.stnk}
-                                onChange={(e) => handleInputChange('stnk', e.target.value)}
-                                disabled={isSaved}
-                                className={`bg-white shadow-md ${errors.stnk ? 'border-red-500' : ''}`}
-                                aria-invalid={!!errors.stnk}
-                            />
+                            <div className="flex gap-2 items-center">
+                                <div onClick={() => handleInputChange('stnk', 'Baik')} className={`w-full text-center py-1 px-4 rounded-md text-primary border border-solid border-green-500 font-medium ${formData.stnk === 'Baik' ? 'bg-green-500' : 'bg-white'} ${isSaved && 'opacity-70'}`}>
+                                    OK
+                                </div>
+                                <div onClick={() => handleInputChange('stnk', 'Problem')} className={`w-full text-center py-1 px-4 rounded-md text-primary border border-solid border-red-500 font-medium ${formData.stnk === 'Problem' ? 'bg-red-500' : 'bg-white'} ${isSaved && 'opacity-70'}`}>
+                                    NG
+                                </div>
+                            </div>
                             {errors.stnk && (
                                 <p className="text-red-500 text-sm mt-1">{errors.stnk}</p>
                             )}
                         </div>
                         <div>
                             <label>Sticker KIR</label>
-                            <Input
-                                id="sticker_kir"
-                                type="text"
-                                placeholder="Sticker KIR"
-                                value={formData.stickerKir}
-                                onChange={(e) => handleInputChange('stickerKir', e.target.value)}
-                                disabled={isSaved}
-                                className={`bg-white shadow-md ${errors.stickerKir ? 'border-red-500' : ''}`}
-                                aria-invalid={!!errors.stickerKir}
-                            />
+                            <div className="flex gap-2 items-center">
+                                <div onClick={() => handleInputChange('stickerKir', 'Baik')} className={`w-full text-center py-1 px-4 rounded-md text-primary border border-solid border-green-500 font-medium ${formData.stickerKir === 'Baik' ? 'bg-green-500' : 'bg-white'} ${isSaved && 'opacity-70'}`}>
+                                    OK
+                                </div>
+                                <div onClick={() => handleInputChange('stickerKir', 'Problem')} className={`w-full text-center py-1 px-4 rounded-md text-primary border border-solid border-red-500 font-medium ${formData.stickerKir === 'Problem' ? 'bg-red-500' : 'bg-white'} ${isSaved && 'opacity-70'}`}>
+                                    NG
+                                </div>
+                            </div>
                             {errors.stickerKir && (
                                 <p className="text-red-500 text-sm mt-1">{errors.stickerKir}</p>
                             )}
                         </div>
                         <div>
                             <label>Surat Izin Bongkar Muat</label>
-                            <Input
-                                id="surat_izin_bongkar_muat"
-                                type="text"
-                                placeholder="Surat Izin Bongkar Muat (IBM)"
-                                value={formData.ibm}
-                                onChange={(e) => handleInputChange('ibm', e.target.value)}
-                                disabled={isSaved}
-                                className={`bg-white shadow-md ${errors.ibm ? 'border-red-500' : ''}`}
-                                aria-invalid={!!errors.ibm}
-                            />
+                            <div className="flex gap-2 items-center">
+                                <div onClick={() => handleInputChange('ibm', 'Baik')} className={`w-full text-center py-1 px-4 rounded-md text-primary border border-solid border-green-500 font-medium ${formData.ibm === 'Baik' ? 'bg-green-500' : 'bg-white'} ${isSaved && 'opacity-70'}`}>
+                                    OK
+                                </div>
+                                <div onClick={() => handleInputChange('ibm', 'Problem')} className={`w-full text-center py-1 px-4 rounded-md text-primary border border-solid border-red-500 font-medium ${formData.ibm === 'Problem' ? 'bg-red-500' : 'bg-white'} ${isSaved && 'opacity-70'}`}>
+                                    NG
+                                </div>
+                            </div>
                             {errors.ibm && (
                                 <p className="text-red-500 text-sm mt-1">{errors.ibm}</p>
                             )}

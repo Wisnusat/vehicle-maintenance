@@ -98,6 +98,10 @@ export default function DetailServicePage() {
         ]));
     };
 
+    const removeService = (index: number) => {
+        setServices(prev => prev.filter((_, i) => i !== index));
+    };
+
     const supabase = useMemo(() => createSupabaseBrowserClient(), []);
 
     const handleNextClick = async () => {
@@ -289,6 +293,17 @@ export default function DetailServicePage() {
                             <label className="block text-primary font-medium text-sm">
                                 Detail Servis
                             </label>
+                            <button
+                                type="button"
+                                onClick={() => removeService(index)}
+                                className="w-8 h-8 bg-red-500 rounded-full flex items-center justify-center flex-shrink-0 hover:bg-red-600"
+                                aria-label="Remove Service"
+                                title="Remove this service"
+                            >
+                                <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
                         </div>
 
                         <div className="space-y-8">
