@@ -163,6 +163,7 @@ export default function ChecksheetPage() {
         if (maintenanceId) {
             try {
                 sessionStorage.setItem('maintenance_current_id', String(maintenanceId));
+                sessionStorage.setItem('maintenance_current_type', formData.jenisBarang || '');
             } catch {}
         }
 

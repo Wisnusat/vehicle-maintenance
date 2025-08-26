@@ -198,7 +198,7 @@ export default function ConfirmService() {
                                 </div>
                                 <div className="col-span-2">
                                     <p className="text-gray-500 mb-1">No Unit/Polisi</p>
-                                    <p className="text-primary font-medium">{header?.noKendaraan || header?.jenis_barang || '-'}</p>
+                                    <p className="text-primary font-medium">{header?.noKendaraan || '-'}</p>
                                 </div>
                             </div>
                         </div>

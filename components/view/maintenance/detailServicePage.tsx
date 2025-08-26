@@ -8,7 +8,8 @@ import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 
 type FormData = {
-    kilometer: string; // or tipeBarang when vehicleType === 'lain-lain'
+    kilometer: string;
+    tipeBarang: string;
 };
 
 type ServiceItem = {
@@ -22,8 +23,9 @@ type ServiceItem = {
 
 export default function DetailServicePage() {
     const router = useRouter();
+    const tipeBarang = sessionStorage.getItem('maintenance_current_type');
     const { vehicleType } = useGlobalState();
-    const [formData, setFormData] = useState<FormData>({ kilometer: '' });
+    const [formData, setFormData] = useState<FormData>({ kilometer: '', tipeBarang: tipeBarang || '' });
     const [services, setServices] = useState<ServiceItem[]>([
         {
             jenisServis: '',
@@ -252,18 +254,35 @@ export default function DetailServicePage() {
                 {/* Kilometer Section */}
                 <div className="bg-white rounded-2xl p-6 shadow-sm">
                     <div className="flex justify-between items-center">
-                        <div className="flex-1">
-                            <label className="block text-primary font-medium text-sm mb-2">
-                                {vehicleType !== 'lain-lain' ? 'Kilometer Saat Ini' : 'Type Barang'}
-                            </label>
-                            <input
-                                type="text"
-                                value={formData.kilometer}
-                                onChange={(e) => handleInputChange('kilometer', e.target.value)}
-                                className="w-full text-lg font-medium text-gray-600 bg-transparent border-solid border-b-2 outline-none"
-                                placeholder="0"
-                            />
-                        </div>
+                        {vehicleType !== 'lain-lain' ? (
+                            <div className="flex-1">
+
+                                <label className="block text-primary font-medium text-sm mb-2">
+                                    Kilometer Saat Ini
+                                </label>
+                                <input
+                                    type="text"
+                                    value={formData.kilometer}
+                                    onChange={(e) => handleInputChange('kilometer', e.target.value)}
+                                    className="w-full text-lg font-medium text-gray-600 bg-transparent border-solid border-b-2 outline-none"
+                                    placeholder="0"
+                                />
+                            </div>
+                        ) : (
+                            <div className="flex-1">
+
+                                <label className="block text-primary font-medium text-sm mb-2">
+                                    Type Barang
+                                </label>
+                                <input
+                                    type="text"
+                                    value={formData.tipeBarang}
+                                    onChange={(e) => handleInputChange('tipeBarang', e.target.value)}
+                                    className="w-full text-lg font-medium text-gray-600 bg-transparent border-solid border-b-2 outline-none"
+                                    placeholder="0"
+                                />
+                            </div>
+                        )}
                         {vehicleType !== 'lain-lain' && (
                             <div className="text-right">
                                 <span className="text-lg font-bold text-primary">KM</span>
