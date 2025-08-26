@@ -4,7 +4,7 @@ import Button from '@/components/ui/Button';
 import { Sidebar } from '@/components/ui/sidebar';
 import { useRouter } from 'next/navigation';
 import { useGlobalState } from '@/contexts/GlobalStateContext';
-import { listForklift, listTowing, noPolisiList } from '@/data/dropdown';
+import { jenisBarang, listForklift, listTowing, noPolisiList } from '@/data/dropdown';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 
@@ -338,13 +338,16 @@ export default function ChecksheetPage() {
                             {vehicleType === 'lain-lain' ? (
                                 <>
                                     <label className="block text-sm font-medium text-gray-700 mb-2">Jenis Barang</label>
-                                    <input
-                                        type="text"
+                                    <select
                                         value={formData.jenisBarang}
                                         onChange={(e) => handleFormChange('jenisBarang', e.target.value)}
-                                        placeholder='Jenis Barang'
-                                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                                    />
+                                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent bg-white"
+                                    >
+                                        <option value="">Pilih</option>
+                                        {jenisBarang.map((opt) => (
+                                            <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                        ))}
+                                    </select>
                                 </>
                             ) : (
                                 <>

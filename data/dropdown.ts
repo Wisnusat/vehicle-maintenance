@@ -103,3 +103,17 @@ export const ruteDeliveryList = [
     { label: 'ASKA', value: 'ASKA' },
     { label: 'HYUNDAI', value: 'HYUNDAI' },
 ];
+
+export const jenisBarang = [
+    { label: "Dolly Pallet A", value: "Dolly Pallet A" },
+    { label: "Dolly Pallet B", value: "Dolly Pallet B" },
+    { label: "Dolly SP", value: "Dolly SP" },
+    { label: "Minomi", value: "Minomi" },
+    { label: "Pallet A", value: "Pallet A" },
+    { label: "Pallet A1", value: "Pallet A1" },
+    { label: "Pallet B", value: "Pallet B" },
+    { label: "Pallet B1", value: "Pallet B1" },
+    { label: "Pallet B2", value: "Pallet B2" },
+    { label: "Pallet SP", value: "Pallet SP" },
+    { label: "Pallet SPX", value: "Pallet SPX" }
+]

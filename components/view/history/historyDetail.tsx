@@ -292,22 +292,26 @@ export default function HistoryDetail({ id }: { id?: string }) {
                             <p className="text-gray-500 mb-1">No {vehicleType === 'truck' ? 'Polisi' : 'Unit'}</p>
                             <p className="text-primary font-medium">{vehicleDetail?.noUnit || '-'}</p>
                         </div>
-                        <div>
-                            <p className="text-gray-500 mb-1">SIO Depnaker</p>
-                            <p className="text-primary font-medium">{vehicleDetail?.sioDepnaker || '-'}</p>
-                        </div>
-                        <div>
-                            <p className="text-gray-500 mb-1">STNK</p>
-                            <p className="text-primary font-medium">{vehicleDetail?.stnk || '-'}</p>
-                        </div>
-                        <div>
-                            <p className="text-gray-500 mb-1">Sticker KIR</p>
-                            <p className="text-primary font-medium">{vehicleDetail?.stickerKir || '-'}</p>
-                        </div>
-                        <div>
-                            <p className="text-gray-500 mb-1">Surat Izin Bongkar Muat</p>
-                            <p className="text-primary font-medium">{vehicleDetail?.ibm || '-'}</p>
-                        </div>
+                        {vehicleType === 'truck' && (
+                            <>
+                                <div>
+                                    <p className="text-gray-500 mb-1">SIO Depnaker</p>
+                                    <p className="text-primary font-medium">{vehicleDetail?.sioDepnaker || '-'}</p>
+                                </div>
+                                <div>
+                                    <p className="text-gray-500 mb-1">STNK</p>
+                                    <p className="text-primary font-medium">{vehicleDetail?.stnk || '-'}</p>
+                                </div>
+                                <div>
+                                    <p className="text-gray-500 mb-1">Sticker KIR</p>
+                                    <p className="text-primary font-medium">{vehicleDetail?.stickerKir || '-'}</p>
+                                </div>
+                                <div>
+                                    <p className="text-gray-500 mb-1">Surat Izin Bongkar Muat</p>
+                                    <p className="text-primary font-medium">{vehicleDetail?.ibm || '-'}</p>
+                                </div>
+                            </>
+                        )}
                     </div>
                 </div>
             </div>
