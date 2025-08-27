@@ -519,23 +519,23 @@ export default function HistoryDetail({ id }: { id?: string }) {
             )}
 
             {/* Delete button */}
-            <div className="flex justify-end mt-6 mx-6">
+            <div className="w-full mt-6 px-6">
                 <button
                     type="button"
                     onClick={handleDelete}
                     disabled={isDeleting}
-                    className={`px-4 py-2 rounded-md text-white ${isDeleting ? 'bg-red-300 cursor-not-allowed' : 'bg-red-500 hover:bg-red-600'}`}
+                    className={`px-4 py-2 w-full rounded-md text-white ${isDeleting ? 'bg-red-300 cursor-not-allowed' : 'bg-red-500 hover:bg-red-600'}`}
                 >
                     {isDeleting ? 'Menghapus...' : 'Hapus'}
                 </button>
             </div>
 
             {/* Download Button */}
-            <div className="w-2/3 mx-auto mt-20">
+            {/* <div className="w-2/3 mx-auto mt-20">
                 <Button type="primary">
                     Download
                 </Button>
-            </div>
+            </div> */}
             <div className="h-8"></div>
         </div>
     );

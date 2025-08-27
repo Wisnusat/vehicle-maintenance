@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 import { Sidebar } from '@/components/ui/sidebar';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
@@ -8,6 +9,7 @@ import { toast } from 'sonner';
 import { useGlobalState } from '@/contexts/GlobalStateContext';
 import { Drawer, DrawerContent, DrawerFooter, DrawerHeader, DrawerTitle, DrawerTrigger, DrawerClose } from '@/components/ui/drawer';
 import { Input } from '@/components/ui/input';
+import * as XLSX from 'xlsx';
 
 type HistoryItem = {
     id: string;
@@ -55,8 +57,17 @@ export default function HistoryList() {
     const [vehicleType, setVehicleType] = useState<string>('all');
     const [startDate, setStartDate] = useState<string>('');
     // const [endDate, setEndDate] = useState<string>('');
+    const pageSize = 10;
+    const [page, setPage] = useState(0);
+    const [loading, setLoading] = useState(false);
+    const [hasMore, setHasMore] = useState(true);
+    const sentinelRef = useRef<HTMLDivElement | null>(null);
+    // Download drawer state
+    const [downloadStartDate, setDownloadStartDate] = useState<string>('');
+    const [downloadEndDate, setDownloadEndDate] = useState<string>('');
+    const [downloading, setDownloading] = useState(false);
 
-    const fetchData = useCallback(async (opts?: { vehicleType?: string; startDate?: string; endDate?: string }) => {
+    const fetchData = useCallback(async (pageToLoad = 0, opts?: { vehicleType?: string; startDate?: string; endDate?: string }) => {
         const supabase = createSupabaseBrowserClient();
         const isMaintenance = method === 'maintenance';
 
@@ -64,11 +75,17 @@ export default function HistoryList() {
         const sd = opts?.startDate ?? startDate;
         // const ed = opts?.endDate ?? endDate;
 
+        setLoading(true);
+        const from = pageToLoad * pageSize;
+        const to = from + pageSize - 1;
+
         if (isMaintenance) {
             // Fetch from maintenance table
             let query = supabase
                 .from('maintenance')
-                .select('*');
+                .select('*')
+                .order('id', { ascending: false })
+                .range(from, to);
 
             if (vt && vt !== 'all') {
                 query = query.eq('vehicleType', vt);
@@ -80,25 +97,34 @@ export default function HistoryList() {
             const { data, error } = await query;
             if (error || !data) {
                 toast.error('Gagal mengambil data. Coba lagi.');
+                setLoading(false);
                 return;
             }
 
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const mapped: HistoryItem[] = data.map((row: any) => ({
                 id: String(row.id),
-                noUnit: row.noKendaraan || row.jenis_barang || '-',
+                noUnit: row.jenis_barang || '',
                 waktuPengisian: row.waktu || '-',
                 tanggal: row.tanggal || '-',
-                vehicleType: row.jenis_barang ? 'lain-lain' : (vt !== 'all' ? vt : 'truck'),
-                noPolisi: row.noPolisi || '-',
-                noKendaraan: row.noKendaraan || '-',
+                vehicleType: row?.vehicleType || '',
+                noPolisi: row.noPolisi || '',
+                noKendaraan: row.noKendaraan || '',
             }));
-            setHistoryItems(mapped);
+            if (pageToLoad === 0) {
+                setHistoryItems(mapped);
+            } else {
+                setHistoryItems((prev) => [...prev, ...mapped]);
+            }
+            setHasMore(mapped.length === pageSize);
+            setLoading(false);
         } else {
             // Legacy checksheet history
             let query = supabase
                 .from('checksheetProfile')
-                .select('*');
+                .select('*')
+                .order('id', { ascending: false })
+                .range(from, to);
 
             if (vt && vt !== 'all') {
                 query = query.eq('vehicleType', vt);
@@ -114,16 +140,200 @@ export default function HistoryList() {
 
             if (error || !data) {
                 toast.error('Gagal mengambil data. Coba lagi.');
+                setLoading(false);
                 return;
             }
 
-            setHistoryItems(data);
+            if (pageToLoad === 0) {
+                setHistoryItems(data as unknown as HistoryItem[]);
+            } else {
+                setHistoryItems((prev) => [...prev, ...(data as unknown as HistoryItem[])]);
+            }
+            setHasMore((data as unknown[]).length === pageSize);
+            setLoading(false);
         }
     }, [vehicleType, startDate, method]);
 
     useEffect(() => {
-        fetchData();
+        // Reset when filters or method change
+        setPage(0);
+        setHasMore(true);
+        fetchData(0);
     }, [fetchData]);
+
+    useEffect(() => {
+        const el = sentinelRef.current;
+        if (!el) return;
+        const observer = new IntersectionObserver((entries) => {
+            const first = entries[0];
+            if (first.isIntersecting && !loading && hasMore) {
+                const next = page + 1;
+                setPage(next);
+                fetchData(next);
+            }
+        });
+        observer.observe(el);
+        return () => {
+            observer.disconnect();
+        };
+    }, [loading, hasMore, page, fetchData]);
+
+    const handleDownload = useCallback(async () => {
+        if (!downloadStartDate || !downloadEndDate) {
+            toast.error('Pilih tanggal mulai dan akhir terlebih dahulu.');
+            return;
+        }
+        if (downloadStartDate > downloadEndDate) {
+            toast.error('Tanggal mulai tidak boleh melebihi tanggal akhir.');
+            return;
+        }
+
+        try {
+            setDownloading(true);
+            const supabase = createSupabaseBrowserClient();
+            const isMaintenance = method === 'maintenance';
+
+            if (isMaintenance) {
+                let query = supabase
+                    .from('maintenance')
+                    .select('*')
+                    .order('id', { ascending: false })
+                    .gte('tanggal', downloadStartDate)
+                    .lte('tanggal', downloadEndDate);
+
+                if (vehicleType && vehicleType !== 'all') {
+                    query = query.eq('vehicleType', vehicleType);
+                }
+
+                const { data: headers, error: headerErr } = await query;
+                if (headerErr || !headers) throw headerErr || new Error('No data');
+
+                const ids = headers.map((h: any) => h.id);
+                let detailsExpanded: any[] = [];
+                if (ids.length) {
+                    const { data: details, error: detailErr } = await supabase
+                        .from('maintenance_detail')
+                        .select('*')
+                        .in('maintenance_id', ids);
+                    if (detailErr) throw detailErr;
+
+                    // Normalize and expand detailServis
+                    detailsExpanded = (details || []).flatMap((d: any) => {
+                        const raw = d.detailServis;
+                        let parsed: any[] = [];
+                        try {
+                            if (Array.isArray(raw)) {
+                                if (raw.length > 0 && typeof raw[0] === 'string') {
+                                    parsed = (raw as string[]).map((s) => { try { return JSON.parse(s); } catch { return null; } }).filter(Boolean) as any[];
+                                } else {
+                                    parsed = raw as any[];
+                                }
+                            } else if (typeof raw === 'string') {
+                                const maybe = JSON.parse(raw);
+                                parsed = Array.isArray(maybe) ? maybe : [maybe];
+                            }
+                        } catch {
+                            parsed = [];
+                        }
+                        return parsed.map((srv) => ({
+                            maintenance_id: d.maintenance_id,
+                            kilometer: d.kilometer ?? null,
+                            tipeBarang: d.tipeBarang ?? null,
+                            jenisServis: srv?.jenisServis ?? '',
+                            keterangan: srv?.keterangan ?? '',
+                            beforePhoto: srv?.beforePhoto ?? '',
+                            afterPhoto: srv?.afterPhoto ?? '',
+                        }));
+                    });
+                }
+
+                const wb = XLSX.utils.book_new();
+                const wsHeader = XLSX.utils.json_to_sheet(headers);
+                XLSX.utils.book_append_sheet(wb, wsHeader, 'Header');
+                const wsDetail = XLSX.utils.json_to_sheet(detailsExpanded);
+                XLSX.utils.book_append_sheet(wb, wsDetail, 'Detail');
+                const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+                const blob = new Blob([wbout], { type: 'application/octet-stream' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `history_maintenance_${downloadStartDate}_to_${downloadEndDate}.xlsx`;
+                a.click();
+                URL.revokeObjectURL(url);
+                toast.success('Report berhasil diunduh.');
+            } else {
+                let query = supabase
+                    .from('checksheetProfile')
+                    .select('*')
+                    .order('id', { ascending: false })
+                    .gte('tanggal', downloadStartDate)
+                    .lte('tanggal', downloadEndDate);
+
+                if (vehicleType && vehicleType !== 'all') {
+                    query = query.eq('vehicleType', vehicleType);
+                }
+
+                const { data: profiles, error: profileErr } = await query;
+                if (profileErr || !profiles) throw profileErr || new Error('No data');
+
+                const ids = profiles.map((p: any) => p.id);
+                let partsExpanded: any[] = [];
+                if (ids.length) {
+                    const { data: parts, error: partsErr } = await supabase
+                        .from('checksheetParts')
+                        .select('*')
+                        .in('id_checksheet', ids);
+                    if (partsErr) throw partsErr;
+
+                    partsExpanded = (parts || []).flatMap((p: any) => {
+                        const raw = p.pengecekan;
+                        let parsed: any[] = [];
+                        try {
+                            if (Array.isArray(raw)) {
+                                parsed = raw.map((item: any) => {
+                                    if (typeof item === 'string') { try { return JSON.parse(item); } catch { return null; } }
+                                    return item;
+                                }).filter(Boolean);
+                            } else if (typeof raw === 'string') {
+                                const maybe = JSON.parse(raw);
+                                parsed = Array.isArray(maybe) ? maybe : [maybe];
+                            }
+                        } catch {
+                            parsed = [];
+                        }
+                        return parsed.map((cek: any) => ({
+                            id_checksheet: p.id_checksheet,
+                            partId: p.id,
+                            partName: p.partName,
+                            text: cek?.text ?? '',
+                            kondisi: cek?.kondisi ?? '',
+                            note: p.note ?? '',
+                        }));
+                    });
+                }
+
+                const wb = XLSX.utils.book_new();
+                const wsHeader = XLSX.utils.json_to_sheet(profiles);
+                XLSX.utils.book_append_sheet(wb, wsHeader, 'Header');
+                const wsDetail = XLSX.utils.json_to_sheet(partsExpanded);
+                XLSX.utils.book_append_sheet(wb, wsDetail, 'Detail');
+                const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+                const blob = new Blob([wbout], { type: 'application/octet-stream' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `history_checksheet_${downloadStartDate}_to_${downloadEndDate}.xlsx`;
+                a.click();
+                URL.revokeObjectURL(url);
+                toast.success('Report berhasil diunduh.');
+            }
+        } catch (e) {
+            console.error(e);
+            toast.error('Gagal membuat report. Coba lagi.');
+        } finally {
+            setDownloading(false);
+        }
+    }, [downloadStartDate, downloadEndDate, method, vehicleType]);
 
     return (
         <div className="min-h-screen bg-secondary">
@@ -198,7 +408,13 @@ export default function HistoryList() {
                                 </DrawerClose> */}
                                 <DrawerClose asChild>
                                     <button
-                                        onClick={() => { setVehicleType('all'); setStartDate(''); fetchData({ vehicleType: 'all', startDate: '', endDate: '' }); }}
+                                        onClick={() => {
+                                            setVehicleType('all');
+                                            setStartDate('');
+                                            setPage(0);
+                                            setHasMore(true);
+                                            fetchData(0, { vehicleType: 'all', startDate: '', endDate: '' });
+                                        }}
                                         className="w-full bg-gray-200 text-primary py-2 rounded-full font-medium"
                                     >
                                         Clear
@@ -294,8 +510,65 @@ export default function HistoryList() {
                             </div>
                         ))
                     )}
+                    {/* Loading & Sentinel */}
+                    {loading && (
+                        <div className="py-4 text-center text-sm text-gray-500">Loading...</div>
+                    )}
+                    <div ref={sentinelRef} className="h-4" />
                 </div>
             </div>
+            {/* Floating Download Button + Drawer */}
+            <Drawer direction="right">
+                <DrawerTrigger asChild>
+                    <div className="fixed w-full bottom-6 z-40 px-6">
+                        <button
+                            aria-label="Download Report"
+                            className="w-full rounded-full bg-primary text-white px-5 py-3 shadow-lg hover:opacity-90"
+                        >
+                            Download
+                        </button>
+                    </div>
+                </DrawerTrigger>
+                <DrawerContent className="bg-primary">
+                    <DrawerHeader className="border-b">
+                        <DrawerTitle className="text-lg text-white">Download Report</DrawerTitle>
+                    </DrawerHeader>
+                    <div className="p-4 space-y-4">
+                        <div className="flex flex-col gap-1">
+                            <label htmlFor="dlStart" className="text-sm text-white">From</label>
+                            <Input
+                                id="dlStart"
+                                type="date"
+                                value={downloadStartDate}
+                                onChange={(e) => setDownloadStartDate(e.target.value)}
+                                className="bg-white shadow-md p-2 rounded-lg"
+                            />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                            <label htmlFor="dlEnd" className="text-sm text-white">To</label>
+                            <Input
+                                id="dlEnd"
+                                type="date"
+                                value={downloadEndDate}
+                                onChange={(e) => setDownloadEndDate(e.target.value)}
+                                className="bg-white shadow-md p-2 rounded-lg"
+                            />
+                        </div>
+                    </div>
+                    <DrawerFooter className="border-t">
+                        <button
+                            onClick={handleDownload}
+                            disabled={downloading}
+                            className="w-full bg-white text-primary py-2 rounded-full font-medium disabled:opacity-50"
+                        >
+                            {downloading ? 'Preparing...' : 'Download'}
+                        </button>
+                        <DrawerClose asChild>
+                            <button className="w-full py-2 rounded-full bg-red-500 text-white">Close</button>
+                        </DrawerClose>
+                    </DrawerFooter>
+                </DrawerContent>
+            </Drawer>
         </div>
     );
 };
