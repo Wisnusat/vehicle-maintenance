@@ -1,6 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
-import Button from '@/components/ui/Button';
 import { Sidebar } from '@/components/ui/sidebar';
 import Image from 'next/image';
 import React, { useEffect, useMemo, useState } from 'react';
@@ -370,8 +369,8 @@ export default function HistoryDetail({ id }: { id?: string }) {
                                 <p className="text-primary font-medium">{maintenanceHeader?.nama || '-'}</p>
                             </div>
                             <div>
-                                <p className="text-gray-500 mb-1">{maintenanceDetail?.tipeBarang ? 'Tipe Barang' : 'Kilometer'}</p>
-                                <p className="text-primary font-medium">{maintenanceDetail?.tipeBarang || maintenanceDetail?.kilometer || '-'}</p>
+                                <p className="text-gray-500 mb-1">{maintenanceHeader?.vehicleType === 'lain-lain' ? 'Tipe Barang' : 'Kilometer'}</p>
+                                <p className="text-primary font-medium">{maintenanceHeader?.vehicleType === 'lain-lain' ? (maintenanceHeader?.jenis_barang || '-') : (maintenanceDetail?.kilometer || '-')}</p>
                             </div>
                             <div>
                                 <p className="text-gray-500 mb-1">NIK</p>
@@ -381,10 +380,12 @@ export default function HistoryDetail({ id }: { id?: string }) {
                                 <p className="text-gray-500 mb-1">Tanggal</p>
                                 <p className="text-primary font-medium">{maintenanceHeader?.tanggal || '-'}</p>
                             </div>
-                            <div className="col-span-2">
-                                <p className="text-gray-500 mb-1">No Unit/Polisi</p>
-                                <p className="text-primary font-medium">{maintenanceHeader?.noKendaraan || maintenanceHeader?.jenis_barang || '-'}</p>
-                            </div>
+                            {maintenanceHeader?.vehicleType !== 'lain-lain' && (
+                                <div className="col-span-2">
+                                    <p className="text-gray-500 mb-1">No Unit/Polisi</p>
+                                    <p className="text-primary font-medium">{maintenanceHeader?.noKendaraan || '-'}</p>
+                                </div>
+                            )}
                         </div>
                     ) : (
                         <div className="grid grid-cols-2 gap-4 text-sm">

@@ -9,7 +9,6 @@ import { toast } from 'sonner';
 
 type FormData = {
     kilometer: string;
-    tipeBarang: string;
 };
 
 type ServiceItem = {
@@ -25,7 +24,7 @@ export default function DetailServicePage() {
     const router = useRouter();
     const tipeBarang = sessionStorage.getItem('maintenance_current_type');
     const { vehicleType } = useGlobalState();
-    const [formData, setFormData] = useState<FormData>({ kilometer: '', tipeBarang: tipeBarang || '' });
+    const [formData, setFormData] = useState<FormData>({ kilometer: '' });
     const [services, setServices] = useState<ServiceItem[]>([
         {
             jenisServis: '',
@@ -112,10 +111,10 @@ export default function DetailServicePage() {
             toast.error('Kilometer wajib diisi');
             return;
         }
-        if (vehicleType === 'lain-lain' && !formData.tipeBarang) {
-            toast.error('Tipe Barang wajib diisi');
-            return;
-        }
+        // if (vehicleType === 'lain-lain' && !formData.tipeBarang) {
+        //     toast.error('Tipe Barang wajib diisi');
+        //     return;
+        // }
         if (services.length === 0) {
             toast.error('Tambahkan minimal 1 detail servis');
             return;
@@ -177,8 +176,7 @@ export default function DetailServicePage() {
         }));
 
         const payload = {
-            tipeBarang: vehicleType === 'lain-lain' ? formData.kilometer : '',
-            kilometer: vehicleType !== 'lain-lain' ? formData.kilometer : '',
+            kilometer: formData.kilometer,
             detailServis,
             maintenance_id: maintenanceId,
         } as const;
@@ -276,8 +274,9 @@ export default function DetailServicePage() {
                                 </label>
                                 <input
                                     type="text"
-                                    value={formData.tipeBarang}
-                                    onChange={(e) => handleInputChange('tipeBarang', e.target.value)}
+                                    value={tipeBarang || ''}
+                                    // onChange={(e) => handleInputChange('tipeBarang', e.target.value)}
+                                    disabled
                                     className="w-full text-lg font-medium text-gray-600 bg-transparent border-solid border-b-2 outline-none"
                                     placeholder="0"
                                 />

@@ -16,6 +16,7 @@ type MaintenanceRow = {
     jenis_barang: string;
     tanggal: string;
     waktu: string;
+    vehicleType: string;
 };
 
 type DetailServisItem = {
@@ -185,8 +186,8 @@ export default function ConfirmService() {
                                     <p className="text-primary font-medium">{header?.nama || '-'}</p>
                                 </div>
                                 <div>
-                                    <p className="text-gray-500 mb-1">{detail?.tipeBarang ? 'Tipe Barang' : 'Kilometer'}</p>
-                                    <p className="text-primary font-medium">{detail?.tipeBarang || detail?.kilometer || '-'}</p>
+                                    <p className="text-gray-500 mb-1">{header?.vehicleType === 'lain-lain' ? 'Tipe Barang' : 'Kilometer'}</p>
+                                    <p className="text-primary font-medium">{header?.vehicleType === 'lain-lain' ? (header?.jenis_barang || '-') : (detail?.kilometer || '-')}</p>
                                 </div>
                                 <div>
                                     <p className="text-gray-500 mb-1">NIK</p>
