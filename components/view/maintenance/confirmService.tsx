@@ -197,10 +197,12 @@ export default function ConfirmService() {
                                     <p className="text-gray-500 mb-1">Tanggal</p>
                                     <p className="text-primary font-medium">{header?.tanggal || '-'}</p>
                                 </div>
-                                <div className="col-span-2">
-                                    <p className="text-gray-500 mb-1">No Unit/Polisi</p>
-                                    <p className="text-primary font-medium">{header?.noKendaraan || '-'}</p>
-                                </div>
+                                {header?.vehicleType !== 'lain-lain' && (
+                                    <div className="col-span-2">
+                                        <p className="text-gray-500 mb-1">No Unit/Polisi</p>
+                                        <p className="text-primary font-medium">{header?.noKendaraan || '-'}</p>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>

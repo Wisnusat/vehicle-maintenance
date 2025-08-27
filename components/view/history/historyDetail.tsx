@@ -331,7 +331,8 @@ export default function HistoryDetail({ id }: { id?: string }) {
                         src={
                             vehicleType?.toLowerCase() === 'truck' ? '/images/truck_img.svg' :
                                 vehicleType?.toLowerCase() === 'towing' ? '/images/tuktuk.svg' :
-                                    '/images/forklift_img.svg'
+                                    vehicleType?.toLowerCase() === 'forklift' ? '/images/forklift_img.svg' : 
+                                        '/images/lorry.svg'
                         }
                         alt={vehicleType || 'Vehicle'}
                         width={80}
