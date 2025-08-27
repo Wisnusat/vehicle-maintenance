@@ -112,7 +112,7 @@ export default function DetailServicePage() {
             toast.error('Kilometer wajib diisi');
             return;
         }
-        if (vehicleType === 'lain-lain' && !formData.kilometer) {
+        if (vehicleType === 'lain-lain' && !formData.tipeBarang) {
             toast.error('Tipe Barang wajib diisi');
             return;
         }
