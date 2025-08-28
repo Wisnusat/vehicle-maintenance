@@ -59,8 +59,9 @@ export function Sidebar() {
                         />
                     </div>
 
+                    <h1 className="text-white px-4 py-2">{method === 'maintenance' ? 'Maintenance' : 'Pengecekan'}</h1>
                     {/* Menu Items */}
-                    <nav className="flex-1 space-y-2">
+                    <nav className="flex-1 space-y-1">
                         {menuItems.map((item) => (
                             <Link
                                 key={item.name}

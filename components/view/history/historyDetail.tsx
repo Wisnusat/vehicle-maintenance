@@ -120,23 +120,51 @@ export default function HistoryDetail({ id }: { id?: string }) {
     };
 
     const handleEdit = () => {
-        if (!profileRaw) return;
-        try {
-            // Mark edit mode and persist current data for prefill
-            localStorage.setItem('editMode', 'true');
-            localStorage.setItem('editChecksheetId', id || '');
-            localStorage.setItem('editProfile', JSON.stringify(profileRaw));
-            localStorage.setItem('editParts', JSON.stringify(partsDetails));
+        if (method !== 'maintenance') {
+            if (!profileRaw) return;
+            try {
+                // Mark edit mode and persist current data for prefill
+                localStorage.setItem('editMode', 'true');
+                localStorage.setItem('editChecksheetId', id || '');
+                localStorage.setItem('editProfile', JSON.stringify(profileRaw));
+                localStorage.setItem('editParts', JSON.stringify(partsDetails));
 
-            // Ensure vehicle type matches the record for subsequent pages
-            if (profileRaw?.vehicleType) {
-                changeVehicleType(String(profileRaw.vehicleType));
+                // Ensure vehicle type matches the record for subsequent pages
+                if (profileRaw?.vehicleType) {
+                    changeVehicleType(String(profileRaw.vehicleType));
+                }
+
+                // Go to input form to edit, then proceed to services
+                router.push('/checksheet/inputForm');
+            } catch {
+                toast.error('Tidak dapat memulai mode ubah.');
             }
+        } else {
+            if (!maintenanceHeader) return;
+            try {
+                // Persist maintenance edit context in sessionStorage
+                sessionStorage.setItem('maintenance_edit_mode', 'true');
+                sessionStorage.setItem('maintenance_edit_id', String(maintenanceHeader.id));
+                sessionStorage.setItem('maintenance_edit_header', JSON.stringify(maintenanceHeader));
+                if (maintenanceDetail) {
+                    sessionStorage.setItem('maintenance_edit_detail', JSON.stringify(maintenanceDetail));
+                }
+                // Also set current type for downstream pages
+                try {
+                    sessionStorage.setItem('maintenance_current_id', String(maintenanceHeader.id));
+                    sessionStorage.setItem('maintenance_current_type', maintenanceHeader.jenis_barang || '');
+                } catch {}
 
-            // Go to input form to edit, then proceed to services
-            router.push('/checksheet/inputForm');
-        } catch {
-            toast.error('Tidak dapat memulai mode ubah.');
+                // Ensure global vehicle type matches
+                if (maintenanceHeader.vehicleType) {
+                    changeVehicleType(String(maintenanceHeader.vehicleType));
+                }
+
+                // Navigate to maintenance start page to continue editing
+                router.push('/maintenance');
+            } catch {
+                toast.error('Tidak dapat memulai mode ubah.');
+            }
         }
     };
 
@@ -356,11 +384,9 @@ export default function HistoryDetail({ id }: { id?: string }) {
                 <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-200">
                     <div className="flex justify-between items-center mb-4">
                         <h3 className="text-primary font-semibold text-lg">Detail Unit</h3>
-                        {method !== 'maintenance' && (
-                            <button onClick={handleEdit} className="bg-primary text-white px-4 py-2 rounded-full text-sm font-medium">
-                                UBAH
-                            </button>
-                        )}
+                        <button onClick={handleEdit} className="bg-primary text-white px-4 py-2 rounded-full text-sm font-medium">
+                            UBAH
+                        </button>
                     </div>
 
                     {method === 'maintenance' ? (

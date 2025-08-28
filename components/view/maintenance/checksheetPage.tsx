@@ -1,5 +1,5 @@
 import Image from 'next/image';
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import Button from '@/components/ui/Button';
 import { Sidebar } from '@/components/ui/sidebar';
 import { useRouter } from 'next/navigation';
@@ -37,6 +37,7 @@ export default function ChecksheetPage() {
         waktuPengisian: '',
         jenisBarang: ''
     });
+    const [saving, setSaving] = useState(false);
 
     // Vehicle data
     const vehicles: VehicleData[] = [
@@ -120,6 +121,50 @@ export default function ChecksheetPage() {
         return [];
     }, [vehicleType]);
 
+    // Prefill form if navigating from HistoryDetail in edit mode (maintenance)
+    useEffect(() => {
+        try {
+            const editMode = sessionStorage.getItem('maintenance_edit_mode');
+            const hdrRaw = sessionStorage.getItem('maintenance_edit_header');
+            const idRaw = sessionStorage.getItem('maintenance_edit_id');
+            if (editMode === 'true' && hdrRaw) {
+                const header = JSON.parse(hdrRaw) as {
+                    id: string | number;
+                    nama?: string;
+                    nik?: string;
+                    noKendaraan?: string;
+                    jenis_barang?: string;
+                    tanggal?: string;
+                    waktu?: string;
+                    vehicleType?: string;
+                };
+                const vt = header.vehicleType || 'truck';
+                // Apply global vehicle type
+                changeVehicleType(vt);
+                // Move slider to corresponding vehicle
+                const idx = vehicles.findIndex(v => v.type === vt);
+                if (idx >= 0) setCurrentSlide(idx);
+                // Prefill form fields
+                setFormData({
+                    nama: header.nama || '',
+                    nik: header.nik || '',
+                    noUnitPolisi: vt === 'lain-lain' ? '' : (header.noKendaraan || ''),
+                    jenisBarang: vt === 'lain-lain' ? (header.jenis_barang || '') : '',
+                    tanggal: header.tanggal || '',
+                    waktuPengisian: header.waktu || '',
+                });
+                // Ensure downstream pages have context
+                try {
+                    if (idRaw) sessionStorage.setItem('maintenance_current_id', String(idRaw));
+                    sessionStorage.setItem('maintenance_current_type', header.jenis_barang || '');
+                } catch {}
+            }
+        } catch {
+            // no-op
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
     const handleNextClick = async () => {
         // Basic required validation
         if (!formData.nama || !formData.nik || !formData.tanggal || !formData.waktuPengisian) {
@@ -137,7 +182,8 @@ export default function ChecksheetPage() {
                 return;
             }
         }
-
+        if (saving) return;
+        setSaving(true);
         const supabase = createSupabaseBrowserClient();
         const payload = {
             nama: formData.nama,
@@ -149,6 +195,23 @@ export default function ChecksheetPage() {
             vehicleType: vehicleType,
         };
 
+        // If editing, update the existing header; else insert a new one
+        const editMode = sessionStorage.getItem('maintenance_edit_mode') === 'true';
+        const editId = sessionStorage.getItem('maintenance_edit_id');
+        if (editMode && editId) {
+            const { error } = await supabase
+                .from('maintenance')
+                .update(payload)
+                .eq('id', editId);
+            if (error) {
+                toast.error(`Gagal memperbarui data: ${error.message}`);
+                setSaving(false);
+                return;
+            }
+            router.push(`/maintenance/detail`);
+            return;
+        }
+
         const { data, error } = await supabase
             .from('maintenance')
             .insert([payload])
@@ -156,6 +219,7 @@ export default function ChecksheetPage() {
             .single();
         if (error) {
             toast.error(`Gagal menyimpan data: ${error.message}`);
+            setSaving(false);
             return;
         }
 
@@ -168,6 +232,8 @@ export default function ChecksheetPage() {
         }
 
         router.push(`/maintenance/detail`);
+        // If navigation fails for some reason, re-enable; in normal flow, page unmounts.
+        setSaving(false);
     };
 
     return (
@@ -392,8 +458,8 @@ export default function ChecksheetPage() {
 
             {/* Next Button */}
             <div className="px-6 pb-8">
-                <Button type="primary" onClick={handleNextClick}>
-                    Next
+                <Button type="primary" onClick={handleNextClick} disabled={saving}>
+                    {saving ? 'Saving...' : 'Next'}
                 </Button>
             </div>
         </div>

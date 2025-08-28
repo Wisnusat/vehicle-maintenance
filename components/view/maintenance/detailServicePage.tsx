@@ -1,5 +1,5 @@
 import Image from 'next/image';
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import Button from '@/components/ui/Button';
 import { Sidebar } from '@/components/ui/sidebar';
 import { useGlobalState } from '@/contexts/GlobalStateContext';
@@ -35,6 +35,35 @@ export default function DetailServicePage() {
             previewSesudah: null,
         },
     ]);
+    const [saving, setSaving] = useState(false);
+
+    // Prefill from edit context if available
+    useEffect(() => {
+        try {
+            const editMode = sessionStorage.getItem('maintenance_edit_mode') === 'true';
+            const raw = sessionStorage.getItem('maintenance_edit_detail');
+            if (!editMode || !raw) return;
+            const detail = JSON.parse(raw) as {
+                kilometer?: string | null;
+                detailServis?: { jenisServis: string; keterangan: string; beforePhoto?: string | null; afterPhoto?: string | null }[];
+            } | null;
+            if (!detail) return;
+            setFormData((prev) => ({ ...prev, kilometer: detail.kilometer || '' }));
+            if (Array.isArray(detail.detailServis) && detail.detailServis.length > 0) {
+                const mapped: ServiceItem[] = detail.detailServis.map((d) => ({
+                    jenisServis: d.jenisServis || '',
+                    keterangan: d.keterangan || 'Isi Catatan disini',
+                    photoSebelum: null,
+                    photoSesudah: null,
+                    previewSebelum: d.beforePhoto || null,
+                    previewSesudah: d.afterPhoto || null,
+                }));
+                setServices(mapped);
+            }
+        } catch {
+            // no-op
+        }
+    }, []);
 
     const handleInputChange = (field: keyof FormData, value: string) => {
         setFormData(prev => ({
@@ -126,6 +155,9 @@ export default function DetailServicePage() {
             }
         }
 
+        if (saving) return;
+        setSaving(true);
+
         // Get maintenance id
         let maintenanceId: string | number | null = null;
         try {
@@ -141,14 +173,15 @@ export default function DetailServicePage() {
         const uploads: { beforeUrl: string; afterUrl: string; jenisServis: string; keterangan: string }[] = [];
         for (let i = 0; i < services.length; i++) {
             const svc = services[i];
-            let beforeUrl = '';
-            let afterUrl = '';
+            // Start with existing previews (could be previously saved URLs)
+            let beforeUrl = typeof svc.previewSebelum === 'string' ? svc.previewSebelum : '';
+            let afterUrl = typeof svc.previewSesudah === 'string' ? svc.previewSesudah : '';
 
             if (svc.photoSebelum) {
                 const ext = svc.photoSebelum.name.split('.').pop() || 'jpg';
                 const path = `${maintenanceId}/${Date.now()}_${i}_before.${ext}`;
                 const { error: upErr } = await supabase.storage.from(bucket).upload(path, svc.photoSebelum, { contentType: svc.photoSebelum.type });
-                if (upErr) { toast.error(`Upload foto sebelum gagal (#${i + 1}): ${upErr.message}`); return; }
+                if (upErr) { toast.error(`Upload foto sebelum gagal (#${i + 1}): ${upErr.message}`); setSaving(false); return; }
                 beforeUrl = supabase.storage.from(bucket).getPublicUrl(path).data.publicUrl;
             }
 
@@ -156,7 +189,7 @@ export default function DetailServicePage() {
                 const ext = svc.photoSesudah.name.split('.').pop() || 'jpg';
                 const path = `${maintenanceId}/${Date.now()}_${i}_after.${ext}`;
                 const { error: upErr } = await supabase.storage.from(bucket).upload(path, svc.photoSesudah, { contentType: svc.photoSesudah.type });
-                if (upErr) { toast.error(`Upload foto sesudah gagal (#${i + 1}): ${upErr.message}`); return; }
+                if (upErr) { toast.error(`Upload foto sesudah gagal (#${i + 1}): ${upErr.message}`); setSaving(false); return; }
                 afterUrl = supabase.storage.from(bucket).getPublicUrl(path).data.publicUrl;
             }
 
@@ -181,13 +214,47 @@ export default function DetailServicePage() {
             maintenance_id: maintenanceId,
         } as const;
 
-        const { error } = await supabase.from('maintenance_detail').insert([payload]);
-        if (error) {
-            toast.error(`Gagal menyimpan detail: ${error.message}`);
-            return;
+        // If editing and we have an existing detail id, update instead of insert
+        const editMode = sessionStorage.getItem('maintenance_edit_mode') === 'true';
+        let detailId: string | number | null = null;
+        try {
+            const raw = sessionStorage.getItem('maintenance_edit_detail');
+            if (raw) {
+                const parsed = JSON.parse(raw) as { id?: string | number } | null;
+                if (parsed && parsed.id) detailId = parsed.id;
+            }
+        } catch {}
+
+        if (editMode && detailId) {
+            const { error } = await supabase
+                .from('maintenance_detail')
+                .update(payload)
+                .eq('id', detailId);
+            if (error) {
+                toast.error(`Gagal memperbarui detail: ${error.message}`);
+                setSaving(false);
+                return;
+            }
+        } else {
+            const { error } = await supabase.from('maintenance_detail').insert([payload]);
+            if (error) {
+                toast.error(`Gagal menyimpan detail: ${error.message}`);
+                setSaving(false);
+                return;
+            }
         }
+        // Clear edit detail context after successful save
+        try {
+            sessionStorage.removeItem('maintenance_edit_detail');
+            // In case header edit flags still exist, ensure they don't linger
+            sessionStorage.removeItem('maintenance_edit_mode');
+            sessionStorage.removeItem('maintenance_edit_id');
+            sessionStorage.removeItem('maintenance_edit_header');
+        } catch {}
 
         router.push('/maintenance/confirm');
+        // In case navigation does not unmount immediately
+        setSaving(false);
     };
 
     return (
@@ -493,8 +560,8 @@ export default function DetailServicePage() {
 
                 {/* Next Button */}
                 <div className="px-6 py-8">
-                    <Button type="primary" onClick={handleNextClick}>
-                        Next
+                    <Button type="primary" onClick={handleNextClick} disabled={saving}>
+                        {saving ? 'Saving...' : 'Next'}
                     </Button>
                 </div>
             </div>
