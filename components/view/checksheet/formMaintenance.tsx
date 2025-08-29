@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Sidebar } from '@/components/ui/sidebar';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
-import { lines, listForklift, listSim, listTowing, noPolisiList, ruteDeliveryList, shift, zonaForklift, zonaTowing } from '@/data/dropdown';
+import { lines, listForklift, listSim, listTowing, noPolisiList, ruteDeliveryList, shift, zonaForklift, zonaTowing, useDropdownOptions } from '@/data/dropdown';
 
 type FormMaintenanceProps = {
     vehicleType: string;
@@ -39,8 +39,22 @@ type FormErrors = Partial<Record<keyof FormData, string>>;
 export default function FormMaintenance({ vehicleType }: FormMaintenanceProps) {
     const router = useRouter();
     const isTruck = vehicleType?.toLowerCase() === 'truck';
-    const listNoUnit = vehicleType?.toLowerCase() === 'forklift' ? listForklift : listTowing;
-    const listZona = vehicleType?.toLowerCase() === 'forklift' ? zonaForklift : zonaTowing;
+    const isForklift = vehicleType?.toLowerCase() === 'forklift';
+
+    // Dropdown options with Supabase, using static fallbacks
+    const { options: shiftOpts } = useDropdownOptions('shift', shift);
+    const { options: linesOpts } = useDropdownOptions('lines', lines);
+    const { options: noPolisiOpts } = useDropdownOptions('nopol', noPolisiList);
+    const { options: ruteOpts } = useDropdownOptions('rute', ruteDeliveryList);
+    const { options: listNoUnit } = useDropdownOptions(
+        isTruck ? 'unittowing' : (isForklift ? 'unitforklift' : 'unittowing'),
+        isTruck ? listTowing : (isForklift ? listForklift : listTowing)
+    );
+    const { options: listZona } = useDropdownOptions(
+        isTruck ? 'zonatowing' : (isForklift ? 'zonaforklift' : 'zonatowing'),
+        isTruck ? zonaTowing : (isForklift ? zonaForklift : zonaTowing)
+    );
+    const { options: listSimOpts } = useDropdownOptions('sim', listSim);
 
     const [formData, setFormData] = useState<FormData>({
         nik: '',
@@ -195,7 +209,7 @@ export default function FormMaintenance({ vehicleType }: FormMaintenanceProps) {
 
             toast.success('Data tersimpan');
             router.push('/checksheet/services');
-        } catch (err) {
+        } catch {
             toast.error('Terjadi kesalahan. Silakan coba lagi.');
         }
     };
@@ -271,7 +285,7 @@ export default function FormMaintenance({ vehicleType }: FormMaintenanceProps) {
                         aria-invalid={!!errors.shift}
                     >
                         <option value="">Pilih Shift</option>
-                        {shift.map((item) => (
+                        {shiftOpts.map((item) => (
                             <option key={item.value} value={item.value}>
                                 {item.label}
                             </option>
@@ -295,7 +309,7 @@ export default function FormMaintenance({ vehicleType }: FormMaintenanceProps) {
                                 aria-invalid={!!errors.noPolisi}
                             >
                                 <option value="">Pilih No Polisi</option>
-                                {noPolisiList.map((item) => (
+                                {noPolisiOpts.map((item) => (
                                     <option key={item.value} value={item.value}>
                                         {item.label}
                                     </option>
@@ -317,7 +331,7 @@ export default function FormMaintenance({ vehicleType }: FormMaintenanceProps) {
                                 aria-invalid={!!errors.ruteDelivery}
                             >
                                 <option value="">Pilih Rute Delivery</option>
-                                {ruteDeliveryList.map((item) => (
+                                {ruteOpts.map((item) => (
                                     <option key={item.value} value={item.value}>
                                         {item.label}
                                     </option>
@@ -365,7 +379,7 @@ export default function FormMaintenance({ vehicleType }: FormMaintenanceProps) {
                                 aria-invalid={!!errors.line}
                             >
                                 <option value="">Pilih Line</option>
-                                {lines.map((item) => (
+                                {linesOpts.map((item) => (
                                     <option key={item.value} value={item.value}>
                                         {item.label}
                                     </option>
@@ -445,7 +459,7 @@ export default function FormMaintenance({ vehicleType }: FormMaintenanceProps) {
                                 aria-invalid={!!errors.sim}
                             >
                                 <option value="">Pilih SIM</option>
-                                {listSim.map((item) => (
+                                {listSimOpts.map((item) => (
                                     <option key={item.value} value={item.value}>
                                         {item.label}
                                     </option>

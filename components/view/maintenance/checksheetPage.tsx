@@ -4,7 +4,7 @@ import Button from '@/components/ui/Button';
 import { Sidebar } from '@/components/ui/sidebar';
 import { useRouter } from 'next/navigation';
 import { useGlobalState } from '@/contexts/GlobalStateContext';
-import { jenisBarang, listForklift, listTowing, noPolisiList } from '@/data/dropdown';
+import { jenisBarang, listForklift, listTowing, noPolisiList, useDropdownOptions } from '@/data/dropdown';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 
@@ -114,12 +114,18 @@ export default function ChecksheetPage() {
         }));
     };
 
+    // Supabase-backed dropdowns with fallbacks
+    const { options: forkliftUnits } = useDropdownOptions('unitforklift', listForklift);
+    const { options: towingUnits } = useDropdownOptions('unittowing', listTowing);
+    const { options: nopolOpts } = useDropdownOptions('nopol', noPolisiList);
+    const { options: jenisBarangOpts } = useDropdownOptions('jenisbarang', jenisBarang);
+
     const unitOptions = useMemo(() => {
-        if (vehicleType === 'forklift') return listForklift;
-        if (vehicleType === 'towing') return listTowing;
-        if (vehicleType === 'truck') return noPolisiList;
-        return [];
-    }, [vehicleType]);
+        if (vehicleType === 'forklift') return forkliftUnits;
+        if (vehicleType === 'towing') return towingUnits;
+        if (vehicleType === 'truck') return nopolOpts;
+        return [] as typeof forkliftUnits;
+    }, [vehicleType, forkliftUnits, towingUnits, nopolOpts]);
 
     // Prefill form if navigating from HistoryDetail in edit mode (maintenance)
     useEffect(() => {
@@ -235,6 +241,10 @@ export default function ChecksheetPage() {
         // If navigation fails for some reason, re-enable; in normal flow, page unmounts.
         setSaving(false);
     };
+
+    useEffect(() => {
+        changeVehicleType('truck');
+    }, []);
 
     return (
         <div className="min-h-screen bg-secondary">
@@ -411,7 +421,7 @@ export default function ChecksheetPage() {
                                         className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent bg-white"
                                     >
                                         <option value="">Pilih</option>
-                                        {jenisBarang.map((opt) => (
+                                        {jenisBarangOpts.map((opt) => (
                                             <option key={opt.value} value={opt.value}>{opt.label}</option>
                                         ))}
                                     </select>
