@@ -7,6 +7,7 @@ import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
 import { useGlobalState } from '@/contexts/GlobalStateContext';
+import * as XLSX from 'xlsx';
 
 type VehicleDetail = {
     name: string;
@@ -73,6 +74,7 @@ export default function HistoryDetail({ id }: { id?: string }) {
     const [profileRaw, setProfileRaw] = useState<any | null>(null);
     const [maintenanceHeader, setMaintenanceHeader] = useState<MaintenanceRow | null>(null);
     const [maintenanceDetail, setMaintenanceDetail] = useState<MaintenanceDetailRow | null>(null);
+    const [isDownloading, setIsDownloading] = useState<boolean>(false);
 
     const vehicleType = useMemo(() => {
         return vehicleDetail?.vehicleType || maintenanceHeader?.vehicleType;
@@ -153,7 +155,7 @@ export default function HistoryDetail({ id }: { id?: string }) {
                 try {
                     sessionStorage.setItem('maintenance_current_id', String(maintenanceHeader.id));
                     sessionStorage.setItem('maintenance_current_type', maintenanceHeader.jenis_barang || '');
-                } catch {}
+                } catch { }
 
                 // Ensure global vehicle type matches
                 if (maintenanceHeader.vehicleType) {
@@ -212,7 +214,7 @@ export default function HistoryDetail({ id }: { id?: string }) {
                                 const maybe = JSON.parse(raw);
                                 parsed = Array.isArray(maybe) ? maybe as DetailServisItem[] : [maybe as DetailServisItem];
                             }
-                        } catch {}
+                        } catch { }
                         (detailData as any).detailServis = parsed;
                         setMaintenanceDetail(detailData as MaintenanceDetailRow);
                     }
@@ -337,6 +339,152 @@ export default function HistoryDetail({ id }: { id?: string }) {
         }
     };
 
+    const handleDownload = async () => {
+        if (!id) {
+            toast.error('ID tidak valid.');
+            return;
+        }
+
+        try {
+            const supabase = createSupabaseBrowserClient();
+
+            if (method === 'maintenance') {
+                // --- Fetch header ---
+                const { data: header, error: headerErr } = await supabase
+                    .from('maintenance')
+                    .select('*')
+                    .eq('id', id)
+                    .single();
+                if (headerErr || !header) throw headerErr || new Error('Data maintenance tidak ditemukan.');
+
+                // --- Fetch details ---
+                const { data: details, error: detailErr } = await supabase
+                    .from('maintenance_detail')
+                    .select('*')
+                    .eq('maintenance_id', header.id);
+                if (detailErr) throw detailErr;
+
+                // Expand detailServis
+                const detailsExpanded = (details || []).flatMap((d: any) => {
+                    const raw = d.detailServis;
+                    let parsed: any[] = [];
+                    try {
+                        if (Array.isArray(raw)) {
+                            if (raw.length > 0 && typeof raw[0] === 'string') {
+                                parsed = raw.map((s) => {
+                                    try {
+                                        return JSON.parse(s);
+                                    } catch {
+                                        return null;
+                                    }
+                                }).filter(Boolean);
+                            } else {
+                                parsed = raw as any[];
+                            }
+                        } else if (typeof raw === 'string') {
+                            const maybe = JSON.parse(raw);
+                            parsed = Array.isArray(maybe) ? maybe : [maybe];
+                        }
+                    } catch {
+                        parsed = [];
+                    }
+                    return parsed.map((srv) => ({
+                        maintenance_id: d.maintenance_id,
+                        kilometer: d.kilometer ?? null,
+                        tipeBarang: d.tipeBarang ?? null,
+                        jenisServis: srv?.jenisServis ?? '',
+                        keterangan: srv?.keterangan ?? '',
+                        beforePhoto: srv?.beforePhoto ?? '',
+                        afterPhoto: srv?.afterPhoto ?? '',
+                    }));
+                });
+
+                // Workbook
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet([header]), 'Header');
+                XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(detailsExpanded), 'Detail');
+
+                const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+                const blob = new Blob([wbout], { type: 'application/octet-stream' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                const tanggal = header?.tanggal ?? 'unknown_date';
+                a.href = url;
+                a.download = `maintenance_${id}_${tanggal}.xlsx`;
+                a.click();
+                URL.revokeObjectURL(url);
+
+                toast.success('Report maintenance berhasil diunduh.');
+            }
+
+            else if (method === 'checksheet') {
+                // --- Fetch header ---
+                const { data: profile, error: profileErr } = await supabase
+                    .from('checksheetProfile')
+                    .select('*')
+                    .eq('id', id)
+                    .single();
+                if (profileErr || !profile) throw profileErr || new Error('Data checksheet tidak ditemukan.');
+
+                // --- Fetch parts ---
+                const { data: parts, error: partsErr } = await supabase
+                    .from('checksheetParts')
+                    .select('*')
+                    .eq('id_checksheet', profile.id);
+                if (partsErr) throw partsErr;
+
+                // Expand pengecekan
+                const partsExpanded = (parts || []).flatMap((p: any) => {
+                    const raw = p.pengecekan;
+                    let parsed: any[] = [];
+                    try {
+                        if (Array.isArray(raw)) {
+                            parsed = raw.map((item: any) => {
+                                if (typeof item === 'string') {
+                                    try { return JSON.parse(item); } catch { return null; }
+                                }
+                                return item;
+                            }).filter(Boolean);
+                        } else if (typeof raw === 'string') {
+                            const maybe = JSON.parse(raw);
+                            parsed = Array.isArray(maybe) ? maybe : [maybe];
+                        }
+                    } catch {
+                        parsed = [];
+                    }
+                    return parsed.map((cek: any) => ({
+                        id_checksheet: p.id_checksheet,
+                        partId: p.id,
+                        partName: p.partName,
+                        text: cek?.text ?? '',
+                        kondisi: cek?.kondisi ?? '',
+                        note: p.note ?? '',
+                    }));
+                });
+
+                // Workbook
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet([profile]), 'Header');
+                XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(partsExpanded), 'Detail');
+
+                const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+                const blob = new Blob([wbout], { type: 'application/octet-stream' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                const tanggal = profile?.tanggal ?? 'unknown_date';
+                a.href = url;
+                a.download = `checksheet_${id}_${tanggal}.xlsx`;
+                a.click();
+                URL.revokeObjectURL(url);
+
+                toast.success('Report checksheet berhasil diunduh.');
+            }
+        } catch (e) {
+            console.error(e);
+            toast.error('Gagal membuat report. Coba lagi.');
+        }
+    };
+
     if (isLoading && !vehicleDetail) {
         return (
             <div className="min-h-screen bg-secondary flex items-center justify-center">
@@ -359,7 +507,7 @@ export default function HistoryDetail({ id }: { id?: string }) {
                         src={
                             vehicleType?.toLowerCase() === 'truck' ? '/images/truck_img.svg' :
                                 vehicleType?.toLowerCase() === 'towing' ? '/images/tuktuk.svg' :
-                                    vehicleType?.toLowerCase() === 'forklift' ? '/images/forklift_img.svg' : 
+                                    vehicleType?.toLowerCase() === 'forklift' ? '/images/forklift_img.svg' :
                                         '/images/lorry.svg'
                         }
                         alt={vehicleType || 'Vehicle'}
@@ -531,7 +679,7 @@ export default function HistoryDetail({ id }: { id?: string }) {
                                 <div>
                                     <p className="text-gray-500 mb-1">Pengecekan</p>
                                     <div className="text-primary font-medium leading-relaxed flex-col gap-2">{part?.pengecekan?.map((pengecekan, i) => <div key={i}>{pengecekan.text} (<span className={`font-medium ${pengecekan.kondisi === 'Baik' ? 'text-green-600' :
-                                            pengecekan.kondisi === 'Problem' ? 'text-red-600' : 'text-orange-500'
+                                        pengecekan.kondisi === 'Problem' ? 'text-red-600' : 'text-orange-500'
                                         }`}>
                                         {pengecekan.kondisi || 'Belum Diisi'}
                                     </span>)</div>)}</div>
@@ -559,11 +707,11 @@ export default function HistoryDetail({ id }: { id?: string }) {
             </div>
 
             {/* Download Button */}
-            {/* <div className="w-2/3 mx-auto mt-20">
-                <Button type="primary">
+            <div className="w-full mt-2 px-6">
+                <button type="button" onClick={handleDownload} className={`px-4 py-2 w-full rounded-md text-white ${isDownloading ? 'bg-primary/60 cursor-not-allowed' : 'bg-primary hover:bg-primary/60'}`}>
                     Download
-                </Button>
-            </div> */}
+                </button>
+            </div>
             <div className="h-8"></div>
         </div>
     );
